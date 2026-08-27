@@ -1,0 +1,27 @@
+{
+  "name": "playwright-generate-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that empowers LLM agents to generate, run, score, and heal enterprise-grade Playwright E2E tests using Domain-Driven POM architecture.",
+  "files": [
+    "dist",
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "baramubarok",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "diff": "^9.0.0",
+    "fast-glob": "^3.3.3",
+    "typescript": "^5.7.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2"
+  }
+}
