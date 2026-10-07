@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { findProjectRoot, resolveInProjectRoot } from "../lib/config.js";
+import { analyzePlaywrightConfig, type ReporterAnalysis, type SettingDetail } from "../lib/configAnalysis.js";
 
 export const checkPlaywrightConfigInputShape = {
   configPath: z
@@ -20,6 +21,9 @@ export type CheckPlaywrightConfigInput = z.infer<typeof checkPlaywrightConfigSch
 export interface CheckPlaywrightConfigOutput {
   configPath: string | null;
   found: boolean;
+  /** "ast": static TypeScript analysis; "text_scan": regex fallback when the config object is not statically reachable. */
+  analysis: "ast" | "text_scan" | "none";
+  /** Source text of each setting (kept for backward compatibility). */
   settings: {
     retries?: string;
     workers?: string;
@@ -28,8 +32,12 @@ export interface CheckPlaywrightConfigOutput {
     trace?: string;
     screenshot?: string;
     video?: string;
+    reporter?: string;
   };
+  settingDetails?: Record<string, SettingDetail>;
+  reporters?: ReporterAnalysis;
   warnings: string[];
+  limitations?: string[];
   note: string;
 }
 
@@ -43,8 +51,8 @@ const CANDIDATE_FILENAMES = [
 ];
 
 const NOTE =
-  "This check is a heuristic text scan of the config file, not a full evaluation — it can miss settings " +
-  "assigned via variables, spread, or environment-dependent expressions.";
+  "Static analysis of the config source (it is never executed). Values computed at runtime are reported with kind " +
+  "'expression' and are not evaluated; settings provided through spreads, imports or helper functions may be missed.";
 
 function extractSetting(content: string, key: string): string | undefined {
   const re = new RegExp(`\\b${key}\\s*:\\s*([^,\\n}]+)`);
@@ -57,11 +65,12 @@ export function checkPlaywrightConfig(input: CheckPlaywrightConfigInput): CheckP
   let root: string;
 
   try {
-    root = findProjectRoot(input.configPath, input.projectRoot);
+    root = findProjectRoot(undefined, input.projectRoot);
   } catch {
     return {
       configPath: null,
       found: false,
+      analysis: "none",
       settings: {},
       warnings: [
         "Playwright configuration (playwright.config.*) could not be located. Provide 'projectRoot' or run 'set_project_root'.",
@@ -71,14 +80,16 @@ export function checkPlaywrightConfig(input: CheckPlaywrightConfigInput): CheckP
   }
 
   if (input.configPath) {
-    const absolute = resolveInProjectRoot(input.configPath, root);
+    const absolute = resolveInProjectRoot(input.configPath, root, { mustExist: true, expectedType: "file" });
     if (existsSync(absolute)) relativeOrAbsolutePath = absolute;
   } else {
     for (const candidate of CANDIDATE_FILENAMES) {
-      const candidatePath = path.join(root, candidate);
-      if (existsSync(candidatePath)) {
+      try {
+        const candidatePath = resolveInProjectRoot(candidate, root, { mustExist: true, expectedType: "file" });
         relativeOrAbsolutePath = candidatePath;
         break;
+      } catch {
+        // Ignore missing or unsafe candidate files during auto-discovery.
       }
     }
   }
@@ -87,6 +98,7 @@ export function checkPlaywrightConfig(input: CheckPlaywrightConfigInput): CheckP
     return {
       configPath: null,
       found: false,
+      analysis: "none",
       settings: {},
       warnings: [
         "No playwright.config.* found at the project root — flakiness-relevant settings (retries, trace, screenshot, fullyParallel, forbidOnly) could not be checked.",
@@ -98,35 +110,62 @@ export function checkPlaywrightConfig(input: CheckPlaywrightConfigInput): CheckP
   const relativeConfigPath = path.relative(root, relativeOrAbsolutePath);
   const content = readFileSync(relativeOrAbsolutePath, "utf-8");
 
-  const settings = {
-    retries: extractSetting(content, "retries"),
-    workers: extractSetting(content, "workers"),
-    fullyParallel: extractSetting(content, "fullyParallel"),
-    forbidOnly: extractSetting(content, "forbidOnly"),
-    trace: extractSetting(content, "trace"),
-    screenshot: extractSetting(content, "screenshot"),
-    video: extractSetting(content, "video"),
+  const analysis = analyzePlaywrightConfig(content, relativeOrAbsolutePath);
+  const textScan = !analysis.found;
+  const keys = ["retries", "workers", "fullyParallel", "forbidOnly", "trace", "screenshot", "video", "reporter"] as const;
+  const settings: CheckPlaywrightConfigOutput["settings"] = {};
+  for (const key of keys) {
+    settings[key] = textScan ? extractSetting(content, key) : analysis.settings[key]?.value;
+  }
+  const isMissing = (key: (typeof keys)[number]) => (textScan ? !settings[key] : analysis.settings[key]?.kind === "missing");
+  const isLiteralOff = (key: (typeof keys)[number]) => {
+    const value = settings[key];
+    const literal = textScan || analysis.settings[key]?.kind === "literal";
+    return literal && value !== undefined && /^['"`]off['"`]$/.test(value.trim());
   };
 
   const warnings: string[] = [];
 
-  if (!settings.retries) {
+  if (isMissing("retries")) {
     warnings.push("No `retries` setting found — flaky tests won't get an automatic retry in CI. Consider `retries: process.env.CI ? 2 : 0`.");
   }
-  if (!settings.trace || /['"]off['"]/.test(settings.trace)) {
-    warnings.push("`trace` is missing or 'off' — failures will be hard to diagnose without a trace. Consider `trace: 'on-first-retry'` or `'retain-on-failure'`.");
+  if (isMissing("trace") || isLiteralOff("trace")) {
+    warnings.push("`trace` is missing or 'off' — failures will be hard to diagnose and run_playwright_test cannot read browser console/network diagnostics from a trace. Consider `trace: 'retain-on-failure'` or `'on-first-retry'`.");
   }
-  if (!settings.screenshot || /['"]off['"]/.test(settings.screenshot)) {
+  if (isMissing("screenshot") || isLiteralOff("screenshot")) {
     warnings.push("`screenshot` is missing or 'off' — consider `screenshot: 'only-on-failure'` so get_failure_details has something to show.");
   }
-  if (!settings.forbidOnly) {
+  if (isMissing("video") || isLiteralOff("video")) {
+    warnings.push("`video` is missing or 'off' — consider `video: 'retain-on-failure'` in `use: { ... }` so test failures capture video recordings for QA & developers.");
+  }
+  if (isMissing("forbidOnly")) {
     warnings.push("No `forbidOnly` setting found — a stray `test.only(...)` could silently skip the rest of the suite in CI. Consider `forbidOnly: !!process.env.CI`.");
   }
-  if (!settings.fullyParallel) {
+  if (isMissing("fullyParallel")) {
     warnings.push(
-      "No `fullyParallel` setting found. Running fully parallel speeds up the suite, but only enable it once tests are verified isolated (see RESEARCH_CONTEXT.md best-practice scheme, category C)."
+      "No `fullyParallel` setting found. Running fully parallel speeds up the suite, but only enable it once tests are verified isolated."
+    );
+  }
+  if (!textScan && analysis.reporters.determinable && !analysis.reporters.html) {
+    warnings.push(
+      analysis.reporters.detected.length === 0
+        ? "No `reporter` configured (Playwright defaults to 'list') — add ['html'] if you want generate_test_report reporter:'html' to find a native report."
+        : `Configured reporter(s) ${analysis.reporters.detected.join(", ")} do not include 'html' — generate_test_report reporter:'html' will have nothing to locate.`,
     );
   }
 
-  return { configPath: relativeConfigPath, found: true, settings, warnings, note: NOTE };
+  const limitations = textScan
+    ? ["The exported config object could not be analyzed statically; settings were read with a heuristic text scan.", ...analysis.limitations.slice(1)]
+    : analysis.limitations;
+
+  return {
+    configPath: relativeConfigPath,
+    found: true,
+    analysis: textScan ? "text_scan" : "ast",
+    settings,
+    ...(textScan ? {} : { settingDetails: analysis.settings, reporters: analysis.reporters }),
+    warnings,
+    ...(limitations.length > 0 ? { limitations } : {}),
+    note: NOTE,
+  };
 }

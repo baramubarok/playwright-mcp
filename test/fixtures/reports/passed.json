@@ -1,0 +1,36 @@
+{
+  "suites": [
+    {
+      "title": "Checkout",
+      "file": "tests/e2e/specs/checkout.spec.ts",
+      "specs": [
+        {
+          "title": "should complete checkout",
+          "ok": true,
+          "line": 10,
+          "column": 1,
+          "tests": [
+            {
+              "status": "expected",
+              "results": [
+                {
+                  "status": "passed",
+                  "duration": 42,
+                  "retry": 0,
+                  "steps": [
+                    { "title": "Navigate" },
+                    { "title": "Submit order" }
+                  ],
+                  "attachments": [
+                    { "name": "video", "path": "/tmp/checkout.webm", "contentType": "video/webm" },
+                    { "name": "trace", "path": "/tmp/checkout.zip", "contentType": "application/zip" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

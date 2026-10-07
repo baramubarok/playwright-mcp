@@ -1,0 +1,4 @@
+{
+  "suites": [],
+  "errors": [{ "message": "Cannot find module './playwright.config.ts'" }]
+}

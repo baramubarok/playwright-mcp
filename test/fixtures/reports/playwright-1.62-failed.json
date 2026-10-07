@@ -1,0 +1,157 @@
+{
+  "config": {
+    "argv": [
+      "/home/baramubarok/.nvm/versions/node/v24.19.0/bin/node",
+      "/tmp/claude-1000/-home-baramubarok-Development-Project-Personal-MCP-playwright-generate-mcp/dd0e6e56-45f0-4950-8b4b-ddd602f0ddd8/scratchpad/pwlab/node_modules/.bin/playwright",
+      "test",
+      "--reporter=json"
+    ],
+    "configFile": "/project/playwright.config.ts",
+    "rootDir": "/project/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/project/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/project/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 6,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "fixture.spec.ts",
+      "file": "fixture.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "checkout",
+          "file": "fixture.spec.ts",
+          "line": 2,
+          "column": 6,
+          "specs": [
+            {
+              "title": "shows order confirmation",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 799,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('status')\nExpected: \u001b[32m\"Paid\"\u001b[39m\nTimeout: 200ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveText\" with timeout 200ms\u001b[22m\n\u001b[2m  - waiting for getByRole('status')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('status')\nExpected: \u001b[32m\"Paid\"\u001b[39m\nTimeout: 200ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveText\" with timeout 200ms\u001b[22m\n\u001b[2m  - waiting for getByRole('status')\u001b[22m\n\n    at /project/tests/fixture.spec.ts:19:44",
+                        "location": {
+                          "file": "/project/tests/fixture.spec.ts",
+                          "column": 44,
+                          "line": 19
+                        },
+                        "snippet": "  17 |     });\n  18 |     await page.waitForTimeout(150);\n> 19 |     await expect(page.getByRole('status')).toHaveText('Paid', { timeout: 200 });\n     |                                            ^\n  20 |   });\n  21 | });\n  22 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/project/tests/fixture.spec.ts",
+                            "column": 44,
+                            "line": 19
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('status')\nExpected: \u001b[32m\"Paid\"\u001b[39m\nTimeout: 200ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toHaveText\" with timeout 200ms\u001b[22m\n\u001b[2m  - waiting for getByRole('status')\u001b[22m\n\n\n  17 |     });\n  18 |     await page.waitForTimeout(150);\n> 19 |     await expect(page.getByRole('status')).toHaveText('Paid', { timeout: 200 });\n     |                                            ^\n  20 |   });\n  21 | });\n  22 |\n    at /project/tests/fixture.spec.ts:19:44"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "steps": [
+                        {
+                          "title": "pay",
+                          "duration": 204
+                        }
+                      ],
+                      "startTime": "2026-10-07T04:16:51.499Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/project/test-results/fixture-checkout-shows-order-confirmation-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/project/test-results/fixture-checkout-shows-order-confirmation-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/project/tests/fixture.spec.ts",
+                        "column": 44,
+                        "line": 19
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "f50ffb23eefd99667046-5401c63f1c7c191eb35b",
+              "file": "fixture.spec.ts",
+              "line": 3,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-07T04:16:51.184Z",
+    "duration": 1285.134,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

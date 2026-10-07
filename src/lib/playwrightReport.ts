@@ -1,11 +1,22 @@
+import { stripAnsi } from "./text.js";
+
 export type ErrorType = "locator_not_found" | "timeout" | "assertion_failed" | "network" | "unknown";
 
+/**
+ * Categorize a Playwright error message. Order matters: most Playwright failures mention a
+ * timeout, so the more specific signals (network, locator resolution, assertion) are checked first.
+ */
 export function categorizeError(message: string | undefined): ErrorType {
   if (!message) return "unknown";
-  if (/timeout/i.test(message)) return "timeout";
-  if (/strict mode violation|resolved to \d+ element|locator\(|getBy[A-Z]/i.test(message)) return "locator_not_found";
-  if (/expect\(|toEqual|toHaveText|toBeVisible|toBeHidden|toBeEnabled|toBeDisabled|Expected.*Received/i.test(message)) return "assertion_failed";
-  if (/net::|ECONNREFUSED|ECONNRESET|fetch failed|40\d|50\d/i.test(message)) return "network";
+  const text = stripAnsi(message);
+  if (/net::ERR_[A-Z_]+|ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up|fetch failed/i.test(text)) return "network";
+  if (/strict mode violation|resolved to \d+ elements|element\(s\) not found/i.test(text)) return "locator_not_found";
+  if (/\bexpect(?:\.soft|\.poll)?\(|\bExpected\b[\s\S]*\bReceived\b/.test(text)) return "assertion_failed";
+  if (/waiting for (?:locator|getBy\w+|selector|frameLocator)/i.test(text) && !/locator resolved to/i.test(text)) {
+    return "locator_not_found";
+  }
+  if (/timeout|timed out/i.test(text)) return "timeout";
+  if (/\b(?:status(?: code)?|HTTP)\s*[:=]?\s*[45]\d\d\b/i.test(text)) return "network";
   return "unknown";
 }
 
@@ -28,20 +39,30 @@ export interface PwJsonStdOutput {
   buffer?: string;
 }
 
+export interface PwJsonLocation {
+  file?: string;
+  line?: number;
+  column?: number;
+}
+
 export interface PwJsonError {
   message?: string;
   stack?: string;
   value?: string;
   snippet?: string;
-  location?: { file?: string; line?: number; column?: number };
+  location?: PwJsonLocation;
 }
 
 export interface PwJsonResult {
   status: "passed" | "failed" | "timedOut" | "interrupted" | "skipped";
   duration: number;
   retry: number;
+  workerIndex?: number;
+  startTime?: string;
   error?: PwJsonError;
   errors?: PwJsonError[];
+  errorLocation?: PwJsonLocation;
+  /** Not emitted by Playwright's JSON reporter; kept for custom/legacy reports. */
   steps?: PwJsonStep[];
   stdout?: PwJsonStdOutput[];
   stderr?: PwJsonStdOutput[];
@@ -51,11 +72,18 @@ export interface PwJsonResult {
 export interface PwJsonTest {
   status: "expected" | "unexpected" | "flaky" | "skipped";
   results: PwJsonResult[];
+  projectId?: string;
+  projectName?: string;
+  expectedStatus?: string;
+  /** Not emitted by Playwright's JSON reporter; kept for custom/legacy reports. */
+  testId?: string;
 }
 
 export interface PwJsonSpec {
   title: string;
   ok: boolean;
+  id?: string;
+  tags?: string[];
   file?: string;
   line?: number;
   column?: number;
@@ -73,40 +101,77 @@ export interface PwJsonSuite {
 
 export interface PwJsonReport {
   suites: PwJsonSuite[];
-  errors?: Array<{ message?: string }>;
+  errors?: Array<{ message?: string; stack?: string; location?: PwJsonLocation }>;
+  config?: { rootDir?: string; configFile?: string; version?: string };
+  stats?: Record<string, unknown>;
+}
+
+export interface TestAttempt {
+  retry: number;
+  status: PwJsonResult["status"];
+  durationMs: number;
+  errorMessage?: string;
+  attachments: PwJsonAttachment[];
+}
+
+export interface NetworkErrorDetail {
+  url?: string;
+  method?: string;
+  status?: number;
+  message?: string;
+  source?: "browser" | "error_message";
 }
 
 export interface TestFailureDetail {
+  testId?: string;
   testTitle: string;
+  fullTitle?: string;
+  projectName?: string;
   errorType: ErrorType;
   errorMessage: string;
-  location?: {
-    file?: string;
-    line?: number;
-    column?: number;
-  };
+  location?: PwJsonLocation;
   screenshotPath?: string;
   traceZipPath?: string;
+  videoPath?: string;
+  /** Markdown ARIA snapshot of the page at failure time, written by Playwright. */
+  errorContextPath?: string;
   recentSteps?: string[];
   consoleErrors?: string[];
-  networkErrors?: Array<{ url?: string; status?: number; message?: string }>;
+  pageErrors?: string[];
+  networkErrors?: NetworkErrorDetail[];
+  /** Where browser diagnostics came from; absent when no trace or diagnostics fixture was available. */
+  diagnosticsSources?: Array<"trace" | "fixture">;
+  diagnosticsOmitted?: { consoleMessages: number; pageErrors: number; failedRequests: number };
   callLogExcerpt?: string;
+  healingGateDirective?: string;
 }
 
+export type FlatTestStatus = "passed" | "failed" | "timedout" | "interrupted" | "flaky" | "skipped";
+
 export interface FlatSpecResult {
+  testId: string;
   title: string;
-  status: "passed" | "failed" | "timedout" | "skipped";
+  fullTitle: string;
+  projectName?: string;
+  status: FlatTestStatus;
   durationMs: number;
   retries: number;
   errorMessage?: string;
   errorType?: ErrorType;
-  location?: {
-    file?: string;
-    line?: number;
-    column?: number;
-  };
+  location?: PwJsonLocation;
   attachments: PwJsonAttachment[];
+  /** Attachments of the last attempt that did not pass; the source for browser diagnostics. */
+  failedAttemptAttachments: PwJsonAttachment[];
+  attempts: TestAttempt[];
   failureDetail?: TestFailureDetail;
+  videoPath?: string;
+}
+
+export const HEALING_GATE_DIRECTIVE =
+  "MANDATORY ACTION: Do NOT edit code automatically. Summarize failure in 2-3 lines and request user confirmation with your proposed Page Object fix before modifying any file.";
+
+function clean(value: string | undefined): string | undefined {
+  return value === undefined ? undefined : stripAnsi(value);
 }
 
 function extractCallLog(message: string | undefined): string | undefined {
@@ -117,18 +182,16 @@ function extractCallLog(message: string | undefined): string | undefined {
 
 function extractLocation(
   spec: PwJsonSpec,
-  lastError: PwJsonError | undefined
-): { file?: string; line?: number; column?: number } | undefined {
-  if (lastError?.location?.line) {
-    return {
-      file: lastError.location.file || spec.file,
-      line: lastError.location.line,
-      column: lastError.location.column,
-    };
+  lastError: PwJsonError | undefined,
+  errorLocation: PwJsonLocation | undefined,
+): PwJsonLocation | undefined {
+  const preferred = lastError?.location?.line ? lastError.location : errorLocation?.line ? errorLocation : undefined;
+  if (preferred) {
+    return { file: preferred.file || spec.file, line: preferred.line, column: preferred.column };
   }
 
   if (lastError?.stack) {
-    const match = lastError.stack.match(/at\s+(?:.*?\s+)?\(?(.*?):(\d+):(\d+)\)?/);
+    const match = stripAnsi(lastError.stack).match(/at\s+(?:.*?\s+)?\(?(.*?):(\d+):(\d+)\)?/);
     if (match) {
       return {
         file: match[1],
@@ -165,117 +228,151 @@ function extractRecentSteps(lastResult: PwJsonResult | undefined): string[] {
   if (!lastResult?.steps || lastResult.steps.length === 0) {
     return [];
   }
-  const allSteps = flattenSteps(lastResult.steps);
-  // Return the last 3 to 5 steps leading to the failure
-  return allSteps.slice(-5);
+  return flattenSteps(lastResult.steps).slice(-5);
 }
 
-function extractConsoleErrors(lastResult: PwJsonResult | undefined): string[] {
-  const errors: string[] = [];
-  if (lastResult?.stderr) {
-    for (const item of lastResult.stderr) {
-      const text = item.text || item.buffer;
-      if (text) {
-        const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-        for (const line of lines) {
-          if (/error|uncaught|exception|failed to load/i.test(line)) {
-            errors.push(line.trim());
-          }
-        }
-      }
-    }
-  }
-  return errors.slice(0, 10);
-}
+/** Network failures named in the error text itself, e.g. `page.goto: net::ERR_CONNECTION_REFUSED at http://…`. */
+function extractNetworkErrorsFromMessage(errorMessage?: string): NetworkErrorDetail[] {
+  const networkErrors: NetworkErrorDetail[] = [];
+  const textToScan = errorMessage ?? "";
 
-function extractNetworkErrors(errorMessage?: string, callLog?: string): Array<{ url?: string; status?: number; message?: string }> {
-  const networkErrors: Array<{ url?: string; status?: number; message?: string }> = [];
-  const textToScan = `${errorMessage ?? ""} ${callLog ?? ""}`;
-
-  // Match HTTP 4xx or 5xx patterns or failed requests
-  const httpMatches = textToScan.matchAll(/(https?:\/\/[^\s"']+)\s+(?:returned\s+status|status\s+code)?\s*([45]\d\d)/gi);
+  const httpMatches = textToScan.matchAll(/(https?:\/\/[^\s"']+)\s+(?:returned\s+status\s+|status\s+code\s+)?([45]\d\d)\b/gi);
   for (const match of httpMatches) {
     networkErrors.push({
       url: match[1],
       status: parseInt(match[2], 10),
       message: `HTTP ${match[2]} error on ${match[1]}`,
+      source: "error_message",
     });
   }
 
-  const netFailMatches = textToScan.matchAll(/net::([A-Z_]+)\s+(?:at\s+)?(https?:\/\/[^\s"']+)?/gi);
+  const netFailMatches = textToScan.matchAll(/net::([A-Z_]+)(?:\s+at\s+(https?:\/\/[^\s"']+))?/g);
   for (const match of netFailMatches) {
     networkErrors.push({
-      url: match[2],
-      message: `Network error: ${match[1]}`,
+      ...(match[2] ? { url: match[2] } : {}),
+      message: `Network error: net::${match[1]}`,
+      source: "error_message",
     });
   }
 
-  return networkErrors;
+  return networkErrors.slice(0, 10);
 }
 
-function mapStatus(pwTest: PwJsonTest, lastResult: PwJsonResult | undefined): FlatSpecResult["status"] {
+function mapStatus(pwTest: PwJsonTest, lastResult: PwJsonResult | undefined): FlatTestStatus {
   if (pwTest.status === "skipped") return "skipped";
+  if (lastResult?.status === "interrupted") return "interrupted";
   if (lastResult?.status === "timedOut") return "timedout";
-  if (pwTest.status === "unexpected") return "failed";
+  if (pwTest.status === "flaky") return "flaky";
+  if (pwTest.status === "unexpected" || lastResult?.status === "failed") return "failed";
   return "passed";
 }
 
-export function flattenSuites(suites: PwJsonSuite[], parentFile?: string): FlatSpecResult[] {
+function collectAttachments(results: PwJsonResult[]): PwJsonAttachment[] {
+  const seen = new Set<string>();
+  const attachments: PwJsonAttachment[] = [];
+  for (const attachment of results.flatMap((result) => result.attachments ?? [])) {
+    const key = `${attachment.name}\u0000${attachment.path ?? ""}\u0000${attachment.body ?? ""}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      attachments.push(attachment);
+    }
+  }
+  return attachments;
+}
+
+const findAttachment = (attachments: PwJsonAttachment[], name: string, extension: string) =>
+  attachments.find((a) => a.name === name || a.path?.endsWith(extension))?.path;
+
+/**
+ * Stable identity for a test: Playwright's spec id plus the project id, so the same spec running in
+ * several projects (chromium/firefox/…) gets distinct ids. Falls back to a positional id for
+ * reports that do not carry Playwright ids.
+ */
+function stableTestId(spec: PwJsonSpec, test: PwJsonTest, file: string | undefined, suitePath: string, testIndex: number): string {
+  if (test.testId) return test.testId;
+  if (spec.id) return test.projectId ? `${spec.id}:${test.projectId}` : `${spec.id}:${testIndex}`;
+  return `${spec.file ?? file ?? "unknown"}:${suitePath}:${spec.line ?? 0}:${spec.column ?? 0}:${spec.title}:${testIndex}`;
+}
+
+export function flattenSuites(suites: PwJsonSuite[], parentFile?: string, parentSuitePath = "", parentTitlePath: string[] = []): FlatSpecResult[] {
   const out: FlatSpecResult[] = [];
   for (const suite of suites) {
     const file = suite.file || parentFile;
+    const suitePath = parentSuitePath ? `${parentSuitePath} > ${suite.title}` : suite.title;
+    // The top-level suite of a Playwright report is the file itself; it is not part of the test title.
+    const isFileSuite = parentTitlePath.length === 0 && suite.file !== undefined && suite.title === suite.file;
+    const titlePath = isFileSuite || !suite.title ? parentTitlePath : [...parentTitlePath, suite.title];
     if (suite.specs) {
       for (const spec of suite.specs) {
         if (!spec.file) spec.file = file;
-        for (const test of spec.tests) {
+        for (const [testIndex, test] of spec.tests.entries()) {
           const lastResult = test.results[test.results.length - 1];
-          const lastError = lastResult?.error ?? lastResult?.errors?.[0];
-          const errorMessage = lastError?.message;
+          const lastError = [...test.results].reverse().map((result) => result.error ?? result.errors?.[0]).find(Boolean);
+          const errorMessage = clean(lastError?.message);
           const status = mapStatus(test, lastResult);
+          const testId = stableTestId(spec, test, file, suitePath, testIndex);
+          const fullTitle = [...titlePath, spec.title].join(" > ");
           const errorType = errorMessage ? categorizeError(errorMessage) : undefined;
-          const location = extractLocation(spec, lastError);
-          const attachments = lastResult?.attachments ?? [];
-          const screenshotPath = attachments.find((a) => a.name === "screenshot" || a.path?.endsWith(".png"))?.path;
-          const traceZipPath = attachments.find((a) => a.name === "trace" || a.path?.endsWith(".zip"))?.path;
+          const lastFailedResult = [...test.results].reverse().find((result) => result.status !== "passed" && result.status !== "skipped");
+          const location = extractLocation(spec, lastError, lastFailedResult?.errorLocation ?? lastResult?.errorLocation);
+          const attachments = collectAttachments(test.results);
+          const failedAttemptAttachments = lastFailedResult?.attachments ?? [];
+          const diagnosticAttachments = failedAttemptAttachments.length > 0 ? failedAttemptAttachments : attachments;
+          const videoPath = findAttachment(attachments, "video", ".webm");
           const callLogExcerpt = extractCallLog(errorMessage);
-          const recentSteps = extractRecentSteps(lastResult);
-          const consoleErrors = extractConsoleErrors(lastResult);
-          const networkErrors = extractNetworkErrors(errorMessage, callLogExcerpt);
+          const recentSteps = extractRecentSteps(lastFailedResult ?? lastResult);
+          const networkErrors = extractNetworkErrorsFromMessage(errorMessage);
 
           let failureDetail: TestFailureDetail | undefined;
-          if (status === "failed" || status === "timedout") {
+          if (status === "failed" || status === "timedout" || status === "interrupted" || status === "flaky") {
             failureDetail = {
+              testId,
               testTitle: spec.title,
+              fullTitle,
+              ...(test.projectName ? { projectName: test.projectName } : {}),
               errorType: errorType ?? "unknown",
               errorMessage: errorMessage ?? "(no error message captured)",
               location,
-              screenshotPath,
-              traceZipPath,
+              screenshotPath: findAttachment(diagnosticAttachments, "screenshot", ".png"),
+              traceZipPath: findAttachment(diagnosticAttachments, "trace", ".zip"),
+              videoPath: findAttachment(diagnosticAttachments, "video", ".webm") ?? videoPath,
+              errorContextPath: diagnosticAttachments.find((a) => a.name === "error-context")?.path,
               recentSteps: recentSteps.length > 0 ? recentSteps : undefined,
-              consoleErrors: consoleErrors.length > 0 ? consoleErrors : undefined,
               networkErrors: networkErrors.length > 0 ? networkErrors : undefined,
               callLogExcerpt,
+              healingGateDirective: HEALING_GATE_DIRECTIVE,
             };
           }
 
           out.push({
+            testId,
             title: spec.title,
+            fullTitle,
+            ...(test.projectName ? { projectName: test.projectName } : {}),
             status,
             durationMs: test.results.reduce((sum, r) => sum + r.duration, 0),
             retries: Math.max(0, test.results.length - 1),
+            attempts: test.results.map((result) => ({
+              retry: result.retry,
+              status: result.status,
+              durationMs: result.duration,
+              errorMessage: clean(result.error?.message ?? result.errors?.[0]?.message),
+              attachments: result.attachments ?? [],
+            })),
             errorMessage,
             errorType,
             location,
             attachments,
+            failedAttemptAttachments,
             failureDetail,
+            videoPath,
           });
         }
       }
     }
     if (suite.suites) {
-      out.push(...flattenSuites(suite.suites, file));
+      out.push(...flattenSuites(suite.suites, file, suitePath, titlePath));
     }
   }
   return out;
 }
-

@@ -1,0 +1,44 @@
+{
+  "suites": [
+    {
+      "title": "Status cases",
+      "specs": [
+        {
+          "title": "timed out test",
+          "tests": [
+            {
+              "status": "unexpected",
+              "results": [{ "status": "timedOut", "duration": 5000, "retry": 0, "error": { "message": "Timeout 5000ms exceeded" } }]
+            }
+          ]
+        },
+        {
+          "title": "skipped test",
+          "tests": [{ "status": "skipped", "results": [] }]
+        },
+        {
+          "title": "flaky test",
+          "tests": [
+            {
+              "status": "flaky",
+              "results": [
+                { "status": "failed", "duration": 10, "retry": 0, "error": { "message": "first attempt failed" } },
+                { "status": "passed", "duration": 12, "retry": 1 }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "interrupted test",
+          "tests": [
+            {
+              "status": "unexpected",
+              "results": [{ "status": "interrupted", "duration": 0, "retry": 0, "error": { "message": "Worker interrupted" } }]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

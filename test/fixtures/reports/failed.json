@@ -1,0 +1,44 @@
+{
+  "suites": [
+    {
+      "title": "Checkout",
+      "file": "tests/e2e/specs/checkout.spec.ts",
+      "specs": [
+        {
+          "title": "should show server error",
+          "ok": false,
+          "file": "tests/e2e/specs/checkout.spec.ts",
+          "line": 28,
+          "column": 5,
+          "tests": [
+            {
+              "status": "unexpected",
+              "results": [
+                {
+                  "status": "failed",
+                  "duration": 101,
+                  "retry": 0,
+                  "error": {
+                    "message": "expect(locator).toBeVisible: Expected true, Received false\nhttps://example.test/api/orders 500",
+                    "location": { "file": "tests/e2e/specs/checkout.spec.ts", "line": 32, "column": 11 }
+                  },
+                  "steps": [
+                    { "title": "Navigate" },
+                    { "title": "Submit order" },
+                    { "title": "[internal] assert error", "error": { "message": "failed" } }
+                  ],
+                  "stderr": [
+                    { "text": "browser error: failed to load resource" }
+                  ],
+                  "attachments": [
+                    { "name": "screenshot", "path": "/tmp/server-error.png", "contentType": "image/png" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

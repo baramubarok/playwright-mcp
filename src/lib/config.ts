@@ -1,5 +1,6 @@
 import { realpathSync, existsSync } from "node:fs";
 import path from "node:path";
+import { canonicalProjectRoot, resolveProjectPath, type ResolvePathOptions } from "./pathSecurity.js";
 
 let _projectRoot: string | null = null;
 
@@ -13,11 +14,7 @@ const PLAYWRIGHT_CONFIG_FILES = [
 ];
 
 function validateAndResolve(dir: string): string {
-  const resolved = path.resolve(dir);
-  if (!existsSync(resolved)) {
-    throw new Error(`Directory does not exist: ${resolved}`);
-  }
-  return realpathSync(resolved);
+  return canonicalProjectRoot(dir);
 }
 
 // Eagerly resolve from env if available (backward-compatible).
@@ -127,17 +124,12 @@ export function isProjectRootSet(): boolean {
  * Resolves a client-supplied relative path against the detected/specified PROJECT_ROOT
  * and guards against path traversal (e.g. "../../etc/passwd") escaping the sandbox.
  */
-export function resolveInProjectRoot(relativePath: string, explicitRoot?: string): string {
-  const root = findProjectRoot(relativePath, explicitRoot);
-  const resolved = path.isAbsolute(relativePath)
-    ? path.resolve(relativePath)
-    : path.resolve(root, relativePath);
-
-  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
-  if (resolved !== root && !resolved.startsWith(rootWithSep)) {
-    throw new Error(
-      `Path "${relativePath}" resolves outside project root "${root}" and is not allowed.`
-    );
-  }
-  return resolved;
+export function resolveInProjectRoot(
+  relativePath: string,
+  explicitRoot?: string,
+  options: ResolvePathOptions = {},
+): string {
+  // Do not let an untrusted client path choose the auto-detection search tree.
+  const root = findProjectRoot(undefined, explicitRoot);
+  return resolveProjectPath(relativePath, root, options);
 }
