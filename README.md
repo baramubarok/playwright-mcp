@@ -173,4 +173,4 @@ PW_MCP_REAL_PLAYWRIGHT_WORKSPACE=~/pw-lab npm run test:e2e
 
 ## 📄 License
 
-MIT
+MIT — see [LICENSE](LICENSE).

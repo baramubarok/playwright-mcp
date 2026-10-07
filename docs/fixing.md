@@ -2,7 +2,7 @@
 
 Dokumen ini adalah tracker implementasi untuk menutup gap yang telah diverifikasi pada review Playwright MCP v0.2. Dokumen roadmap utama tetap berada di `docs/adjustment-mcp-3.md`; file ini berfokus pada pekerjaan perbaikan, acceptance criteria, regression test, dan kesiapan release.
 
-> **Status:** Sprint 0–6 selesai, termasuk Sprint 2E (temuan review lanjutan). Semua P0/P1 tertutup dan seluruh release gate lokal lulus. Yang tersisa adalah keputusan rilis (versi dan lisensi); CI/CD sengaja ditunda; lihat [§8 Sisa pekerjaan](#8-sisa-pekerjaan--keputusan-yang-dibutuhkan).
+> **Status:** Sprint 0–6 selesai, termasuk Sprint 2E (temuan review lanjutan). Semua P0/P1 tertutup dan seluruh release gate lokal lulus. Versi 0.2.0 dan lisensi MIT sudah ditetapkan; CI/CD sengaja ditunda; lihat [§8 Sisa pekerjaan](#8-sisa-pekerjaan--keputusan-yang-dibutuhkan).
 >
 > **Last updated:** 2026-10-07
 
@@ -22,7 +22,7 @@ Dokumen ini adalah tracker implementasi untuk menutup gap yang telah diverifikas
 | MCP output contract | ✅ Done | P2 | `outputSchema` + `structuredContent` di semua tool; error `{ code, message, details }` |
 | Token optimization | ✅ Done | P2 | Summary ≤ 6.000 karakter (terukur); run gagal tipikal ≈ 3.500 karakter |
 | Config audit dan documentation | ✅ Done | P2 | Audit AST (literal/expression/missing), README, CHANGELOG, catatan RESEARCH_CONTEXT |
-| Release hygiene | 🔄 In Progress | P2 | Lockfile sinkron, `npm audit` 0; menunggu keputusan versi/lisensi. CI/CD ditunda (S6-08) |
+| Release hygiene | ✅ Done | P2 | Versi 0.2.0 sinkron, lisensi MIT, `npm audit` 0. CI/CD ditunda (S6-08) |
 
 ### Status legend
 
@@ -88,7 +88,7 @@ Sprint 4: Quality scoring & scaffold quality            ✅
     ↓
 Sprint 5: MCP contract & token optimization             ✅
     ↓
-Sprint 6: Config audit, documentation & release         🔄 (menunggu keputusan rilis; CI ditunda)
+Sprint 6: Config audit, documentation & release         ✅ (CI ditunda)
 ```
 
 ---
@@ -292,7 +292,7 @@ Saat batas tercapai, `fitToBudget` membuang detail paling tidak penting lebih du
 
 ---
 
-## Sprint 6 — Config Audit, Documentation & Release Readiness — 🔄 In Progress
+## Sprint 6 — Config Audit, Documentation & Release Readiness — ✅ Done (S6-08 Deferred)
 
 | ID | Task | Severity | Status | Related files | Verification |
 |---|---|---:|---|---|---|
@@ -355,7 +355,8 @@ Saat batas tercapai, `fitToBudget` membuang detail paling tidak penting lebih du
 - [x] `npm run build` berhasil.
 - [x] `npm test` berhasil.
 - [x] `git diff --check` berhasil.
-- [ ] Keputusan versi rilis dan lisensi (lihat §8).
+- [x] Lisensi konsisten (MIT).
+- [x] Versi rilis ditetapkan: 0.2.0.
 
 ### Verification log (2026-10-07)
 
@@ -390,6 +391,7 @@ Dijalankan dari `/home/baramubarok/Development/Project/Personal/MCP/playwright-g
 | 2026-10-07 | `testId` = `spec.id:projectId`, fallback posisi untuk report non-Playwright | Accepted | Format ID berubah dibanding sebelumnya (report lama tetap memakai fallback yang sama) |
 | 2026-10-07 | Package di workspace root diterima; dari parent non-workspace ditolak | Accepted | Monorepo bisa dijalankan tanpa menurunkan guard |
 | 2026-10-07 | Summary default dibatasi 6.000 karakter; path relatif terhadap `projectRoot` | Accepted | Kontrak output berubah: `tests` di summary hanya berisi test yang tidak pass; `runner.stdout/stderr` hanya ada di `full` |
+| 2026-10-07 | Lisensi diseragamkan ke MIT (sebelumnya `package.json` ISC, README MIT) | Accepted | File `LICENSE` ditambahkan; ikut ter-publish ke npm |
 | 2026-10-07 | CI/CD belum ditambahkan; workflow GitHub Actions yang sempat dibuat dihapus | Accepted | Release gate dijalankan manual; S6-08 Deferred |
 | 2026-10-07 | `npm audit fix` (semver-compatible) + hapus `fast-glob`/`diff` | Accepted | SDK MCP naik ke 1.32.1 (dalam `^1.30.0`); seluruh test lulus |
 
@@ -399,8 +401,8 @@ Dijalankan dari `/home/baramubarok/Development/Project/Personal/MCP/playwright-g
 
 | Item | Jenis | Catatan |
 |---|---|---|
-| Versi rilis | Keputusan | Masih `0.1.0-alpha`. Untuk rilis v0.2 cukup `npm version 0.2.0 --no-git-tag-version`; versi server MCP ikut otomatis karena dibaca dari `package.json` |
-| Lisensi | Keputusan | README menyebut **MIT**, `package.json` menyebut **ISC**. Pilih salah satu dan tambahkan file `LICENSE` |
+| Versi rilis | ✅ Selesai | 0.2.0 di `package.json` dan `package-lock.json`; versi server MCP ikut otomatis |
+| Lisensi | ✅ Selesai | MIT: `package.json`, `package-lock.json`, file `LICENSE`, dan README sudah konsisten |
 | CI/CD | Deferred | Belum ditambahkan atas keputusan owner. Bila nanti diperlukan: `npm ci`, `npm run build`, `npm test`, `npm run check:package`, `npm audit --omit=dev`, `npm pack --dry-run`, plus job opsional `test:e2e` dengan `PW_MCP_REAL_PLAYWRIGHT_WORKSPACE` |
 | `docs/adjustment-mcp-3.md` | Hygiene | Roadmap acuan ini tidak di-track git (`docs/*` di-ignore); `RESEARCH_CONTEXT.md` juga tidak |
 
