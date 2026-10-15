@@ -124,7 +124,7 @@ registerJsonTool(
   {
     title: "Run Playwright test",
     description:
-      "Run a Playwright spec file in the target project and return a bounded, structured result: explicit status, counts, runner/process metadata, up to 5 failures with location, error type, recent steps, " +
+      "Run Playwright tests in the target project (pass a spec file, a directory, or omit specPath and pass grep for tag-only runs like @smoke or @regression) and return a bounded, structured result: explicit status, counts, runner/process metadata, up to 5 failures with location, error type, recent steps, " +
       "browser console errors, page errors and failed requests (from trace.zip and/or the scaffolded diagnostics fixture), screenshot/trace/video/error-context paths, and a compact qualityScore. " +
       "The project's own reporters (HTML, Allure) keep running. Use detail:'full' or get_failure_details for more. " +
       "TOKEN ECONOMY INSTRUCTION: In your response, provide a clean, compact 2–3 line summary (status, duration, video link, and failure cause) rather than dumping large markdown tables into chat. " +

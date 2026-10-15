@@ -1,11 +1,16 @@
 import { statSync, existsSync } from "node:fs";
 import { z } from "zod";
 import { findProjectRoot, resolveInProjectRoot } from "../lib/config.js";
-import { scoreSpecAndRelatedPOMFiles, type ComprehensiveQualityScore } from "../lib/scoreContent.js";
+import {
+  findSpecFilesInDirectory,
+  scoreSpecAndRelatedPOMFiles,
+  scoreSpecFiles,
+  type ComprehensiveQualityScore,
+} from "../lib/scoreContent.js";
 import { generateQualityHtmlReport } from "../lib/htmlQualityReport.js";
 
 export const scoreTestQualityInputShape = {
-  specPath: z.string().describe("Path to the spec file or page object to score, relative to project root or absolute."),
+  specPath: z.string().describe("Path to the spec file, page object, or test directory to score, relative to project root or absolute."),
   projectRoot: z
     .string()
     .optional()
@@ -25,11 +30,21 @@ export interface ScoreTestQualityOutput extends ComprehensiveQualityScore {
 
 export function scoreTestQuality(input: ScoreTestQualityInput): ScoreTestQualityOutput {
   const root = findProjectRoot(undefined, input.projectRoot);
-  const absolutePath = resolveInProjectRoot(input.specPath, root, { mustExist: true, expectedType: "file" });
-  if (!existsSync(absolutePath) || !statSync(absolutePath).isFile()) {
+  const absolutePath = resolveInProjectRoot(input.specPath, root, { mustExist: true });
+  if (!existsSync(absolutePath)) {
     throw new Error(`Spec file not found: ${input.specPath}`);
   }
-  const score = scoreSpecAndRelatedPOMFiles(absolutePath, root);
+  const isDirectory = statSync(absolutePath).isDirectory();
+  let score: ComprehensiveQualityScore;
+  if (isDirectory) {
+    const discovered = findSpecFilesInDirectory(absolutePath);
+    if (discovered.length === 0) {
+      throw new Error(`No test files found in directory: ${input.specPath}`);
+    }
+    score = scoreSpecFiles(discovered.slice(0, 50), root);
+  } else {
+    score = scoreSpecAndRelatedPOMFiles(absolutePath, root);
+  }
   let qualityReportHtmlPath: string | undefined;
   if (input.generateHtmlReport) {
     try {

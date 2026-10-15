@@ -3,7 +3,12 @@ import path from "node:path";
 import { z } from "zod";
 import { findProjectRoot, resolveInProjectRoot } from "../lib/config.js";
 import { flattenSuites, HEALING_GATE_DIRECTIVE, type PwJsonReport, type TestFailureDetail } from "../lib/playwrightReport.js";
-import { scoreSpecAndRelatedPOMFiles, type ComprehensiveQualityScore } from "../lib/scoreContent.js";
+import {
+  findSpecFilesInDirectory,
+  scoreSpecAndRelatedPOMFiles,
+  scoreSpecFiles,
+  type ComprehensiveQualityScore,
+} from "../lib/scoreContent.js";
 import { generateQualityHtmlReport } from "../lib/htmlQualityReport.js";
 import { createRunReportDirectory, discardRunReportDirectory, registerRunReport } from "../lib/reportRegistry.js";
 import { checkTestPrerequisites, type TestPrerequisites } from "../lib/prerequisites.js";
@@ -27,7 +32,12 @@ import {
 export const MAX_REPORT_BYTES = 50 * 1024 * 1024;
 
 export const runPlaywrightTestInputShape = {
-  specPath: z.string().describe("Path to the spec file, relative to project root or absolute, e.g. \"e2e/payment.spec.ts\"."),
+  specPath: z
+    .string()
+    .optional()
+    .describe(
+      "Optional path to a spec file or directory, relative to project root or absolute, e.g. \"e2e/payment.spec.ts\" or \"tests/e2e/specs\". If omitted, runs all tests or tests matching `grep` across the project (e.g. grep: \"@smoke\" or \"@regression\").",
+    ),
   projectRoot: z
     .string()
     .optional()
@@ -182,9 +192,17 @@ export async function runPlaywrightTest(
 ): Promise<RunPlaywrightTestOutput> {
   const level: DetailLevel = input.detail ?? "summary";
   const projectRoot = findProjectRoot(undefined, input.projectRoot);
-  const absoluteSpecPath = resolveInProjectRoot(input.specPath, projectRoot, { expectedType: "file" });
-  if (!existsSync(absoluteSpecPath)) {
-    throw new Error(`Spec file not found: ${input.specPath}`);
+  let absoluteSpecPath: string | undefined;
+  let relativeSpecToRoot: string | undefined;
+  let isDirectorySpec = false;
+
+  if (input.specPath) {
+    absoluteSpecPath = resolveInProjectRoot(input.specPath, projectRoot);
+    if (!existsSync(absoluteSpecPath)) {
+      throw new Error(`Spec file not found: ${input.specPath}`);
+    }
+    isDirectorySpec = statSync(absoluteSpecPath).isDirectory();
+    relativeSpecToRoot = path.relative(projectRoot, absoluteSpecPath);
   }
 
   const prerequisites = checkTestPrerequisites(projectRoot);
@@ -207,8 +225,8 @@ export async function runPlaywrightTest(
   const jsonReportPath = path.join(reportDir, "report.json");
   const runConfig = prepareRunConfig({ configPath: prerequisites.playwright.configPath, jsonReportPath });
 
-  const relativeSpecToRoot = path.relative(projectRoot, absoluteSpecPath);
-  const args = ["test", relativeSpecToRoot, ...runConfig.args];
+  const specArgs = relativeSpecToRoot ? [relativeSpecToRoot] : [];
+  const args = ["test", ...specArgs, ...runConfig.args];
   if (input.grep) args.push("--grep", input.grep);
   if (input.headed) args.push("--headed");
 
@@ -270,12 +288,29 @@ export async function runPlaywrightTest(
   let qualityScore: ComprehensiveQualityScore | undefined;
   let qualityReportHtmlPath: string | undefined;
   try {
-    qualityScore = scoreSpecAndRelatedPOMFiles(absoluteSpecPath, projectRoot);
+    if (absoluteSpecPath && !isDirectorySpec) {
+      qualityScore = scoreSpecAndRelatedPOMFiles(absoluteSpecPath, projectRoot);
+    } else if (absoluteSpecPath && isDirectorySpec) {
+      const discovered = findSpecFilesInDirectory(absoluteSpecPath);
+      if (discovered.length > 0) {
+        qualityScore = scoreSpecFiles(discovered.slice(0, 20), projectRoot);
+      }
+    } else {
+      const testedFiles = [...new Set(flatTests.map((t) => t.location?.file).filter(Boolean))] as string[];
+      const candidateFiles = testedFiles
+        .map((f) => (path.isAbsolute(f) ? f : path.resolve(projectRoot, f)))
+        .filter((f) => existsSync(f) && statSync(f).isFile());
+      if (candidateFiles.length > 0) {
+        qualityScore = scoreSpecFiles(candidateFiles.slice(0, 20), projectRoot);
+      }
+    }
+
     if (input.generateHtmlReport && qualityScore) {
+      const reportSpecLabel = input.specPath ?? (input.grep ? `Tag: ${input.grep}` : "Suite");
       qualityReportHtmlPath = generateQualityHtmlReport({
         score: qualityScore,
         projectRoot,
-        specPath: input.specPath,
+        specPath: reportSpecLabel,
         suiteStatus: status === "runner_error" || status === "interrupted" || status === "flaky" ? "failed" : status,
         durationMs,
         totalTests: summary.total,

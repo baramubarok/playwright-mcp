@@ -5,7 +5,7 @@ export const runAndHealPromptText = `You are an expert Playwright test execution
 ===================================================================
 1. EXECUTION & SINGLE-TURN DIAGNOSTICS
 ===================================================================
-1. Execute the target spec using 'run_playwright_test' (pass 'specPath' and optional 'projectRoot' or 'grep').
+1. Execute tests using 'run_playwright_test'. Pass 'specPath' for a specific spec file or directory, or omit 'specPath' and pass 'grep' (e.g. grep: '@smoke' or grep: '@regression') to run matching tests across the suite.
    The default response is a bounded summary (detail: 'summary'). Use detail: 'full' only when you need every test and retry attempt.
 2. 'run_playwright_test' returns:
    - status: 'passed' | 'failed' | 'timedout' | 'interrupted' | 'flaky' | 'skipped' | 'runner_error' | 'setup_required'

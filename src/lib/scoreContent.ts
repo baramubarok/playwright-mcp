@@ -1,7 +1,7 @@
 import path from "node:path";
 import ts from "typescript";
 import { resolveProjectPath } from "./pathSecurity.js";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 
 export interface AntiPatternCounts {
   waitForTimeout: number;
@@ -327,11 +327,54 @@ export function findRelatedPOMFiles(entryFilePath: string, visited = new Set<str
   return results;
 }
 
-export function scoreSpecAndRelatedPOMFiles(entryFilePath: string, projectRoot?: string): ComprehensiveQualityScore {
-  const allFiles = findRelatedPOMFiles(entryFilePath, new Set<string>(), projectRoot);
+export function findSpecFilesInDirectory(directoryPath: string, maxFiles = 50): string[] {
+  const results: string[] = [];
+  function walk(currentDir: string): void {
+    if (results.length >= maxFiles || !existsSync(currentDir)) return;
+    try {
+      const entries = readdirSync(currentDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (results.length >= maxFiles) break;
+        const fullPath = path.join(currentDir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== "node_modules" && !entry.name.startsWith(".")) {
+            walk(fullPath);
+          }
+        } else if (entry.isFile() && /\.(?:spec|test)\.[jt]sx?$/.test(entry.name)) {
+          results.push(fullPath);
+        }
+      }
+    } catch {
+      // Ignore directory read errors
+    }
+  }
+  walk(directoryPath);
+  return results;
+}
+
+export function scoreSpecFiles(entryFilePaths: string[], projectRoot?: string): ComprehensiveQualityScore {
+  const visited = new Set<string>();
+  const allFiles: string[] = [];
+  for (const entry of entryFilePaths) {
+    if (existsSync(entry)) {
+      allFiles.push(...findRelatedPOMFiles(entry, visited, projectRoot));
+    }
+  }
+
+  if (allFiles.length === 0) {
+    return {
+      locatorQuality: { semanticPct: 0, cssXpathCount: 0, semanticCount: 0, totalLocators: 0 },
+      assertionDensity: { totalAssertions: 0, testCount: 0, perTestAvg: 0 },
+      antiPatterns: emptyAntiPatterns(),
+      scaffold: { skeleton: false, todoCount: 0, fixmeTests: 0 },
+      warnings: [],
+    };
+  }
+
   if (allFiles.length <= 1) {
-    const content = readFileSync(entryFilePath, "utf-8");
-    return scoreContent(content, entryFilePath);
+    const singleFile = allFiles[0];
+    const content = readFileSync(singleFile, "utf-8");
+    return scoreContent(content, singleFile);
   }
 
   const fileBreakdown: Record<string, ScoreContentResult> = {};
@@ -387,4 +430,8 @@ export function scoreSpecAndRelatedPOMFiles(entryFilePath: string, projectRoot?:
     warnings: combinedWarnings,
     fileBreakdown,
   };
+}
+
+export function scoreSpecAndRelatedPOMFiles(entryFilePath: string, projectRoot?: string): ComprehensiveQualityScore {
+  return scoreSpecFiles([entryFilePath], projectRoot);
 }

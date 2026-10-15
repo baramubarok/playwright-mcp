@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { scoreContent } from "../../src/lib/scoreContent.js";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import {
+  findSpecFilesInDirectory,
+  scoreContent,
+  scoreSpecFiles,
+} from "../../src/lib/scoreContent.js";
 
 test("counts semantic locators and assertions in real source", () => {
   const score = scoreContent(`
@@ -111,4 +118,40 @@ test("distinguishes nested selectors, chained locators and skeleton markers", ()
   assert.equal(score.warnings.filter((warning) => /deep\/nested CSS or XPath/.test(warning)).length, 2);
   assert.deepEqual(score.scaffold, { skeleton: true, todoCount: 1, fixmeTests: 1 });
   assert.match(score.warnings[0], /^Unimplemented scaffold skeleton/);
+});
+
+test("findSpecFilesInDirectory and scoreSpecFiles discover and aggregate multi-spec files", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "mcp-multi-spec-"));
+  try {
+    const spec1 = path.join(root, "login.spec.ts");
+    const spec2 = path.join(root, "checkout.spec.ts");
+    await writeFile(
+      spec1,
+      `
+      import { test, expect } from '@playwright/test';
+      test('login', async ({ page }) => {
+        await page.getByRole('button').click();
+        await expect(page.getByText('Welcome')).toBeVisible();
+      });
+    `,
+    );
+    await writeFile(
+      spec2,
+      `
+      import { test, expect } from '@playwright/test';
+      test('checkout', async ({ page }) => {
+        await page.getByRole('button').click();
+        await expect(page.getByText('Done')).toBeVisible();
+      });
+    `,
+    );
+    const specs = findSpecFilesInDirectory(root);
+    assert.equal(specs.length, 2);
+    const combinedScore = scoreSpecFiles(specs, root);
+    assert.equal(combinedScore.locatorQuality.semanticCount, 4);
+    assert.equal(combinedScore.assertionDensity.totalAssertions, 2);
+    assert.equal(combinedScore.assertionDensity.testCount, 2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

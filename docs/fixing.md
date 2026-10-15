@@ -394,6 +394,8 @@ Dijalankan dari `/home/baramubarok/Development/Project/Personal/MCP/playwright-g
 | 2026-10-07 | Lisensi diseragamkan ke MIT (sebelumnya `package.json` ISC, README MIT) | Accepted | File `LICENSE` ditambahkan; ikut ter-publish ke npm |
 | 2026-10-07 | CI/CD belum ditambahkan; workflow GitHub Actions yang sempat dibuat dihapus | Accepted | Release gate dijalankan manual; S6-08 Deferred |
 | 2026-10-07 | `npm audit fix` (semver-compatible) + hapus `fast-glob`/`diff` | Accepted | SDK MCP naik ke 1.32.1 (dalam `^1.30.0`); seluruh test lulus |
+| 2026-10-15 | Multi-OS Windows tree-kill (`taskkill /T /F`) dan support shell untuk `.cmd`/`.bat` | Accepted | Mencegah browser zombie di Windows saat timeout/cancel |
+| 2026-10-15 | Eksekusi multi-spec (direktori) dan tag-only (`specPath` opsional, filter `grep` e.g. `@smoke`, `@regression`) | Accepted | Memudahkan QA menjalankan subset test suite secara global |
 
 ---
 
@@ -410,7 +412,7 @@ Dijalankan dari `/home/baramubarok/Development/Project/Personal/MCP/playwright-g
 
 - **Format trace** adalah format internal Playwright. Parser bersifat best-effort, kegagalan baca tidak menggagalkan tool, dan hanya divalidasi pada 1.62.1. Fixture diagnostics tetap berfungsi tanpa trace.
 - **Wrapper config** muncul sesaat di direktori config proyek, dan watcher atau linter mungkin melihatnya. File dihapus setelah setiap run; sisa dari proses yang mati paksa dibersihkan pada run berikutnya.
-- **Windows** belum diuji. Tidak ada kill process-group (hanya `child.kill`), dan shim `.cmd` Allure tidak dijalankan lewat shell.
+- **Windows** sudah ditangani: process tree dihentikan menggunakan `taskkill /pid <pid> /T /F`, child process spawning mendukung `.cmd`/`.bat` lewat shell execution dan `windowsHide: true`.
 - **Fixture diagnostics** bergantung pada `page`, jadi test domain yang hanya memakai `request` tetap membuka halaman.
 - **Allure 2** (`allure-commandline`, butuh Java) hanya diuji dengan fake CLI.
 - **Test runner** butuh Node 22+ karena memakai glob di `node --test`; runtime server sendiri tidak memakai fitur Node 22.

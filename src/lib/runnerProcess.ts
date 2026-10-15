@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 
 export const DEFAULT_RUNNER_TIMEOUT_MS = 120_000;
@@ -12,6 +12,7 @@ export interface RunnerProcessOptions {
   timeoutMs?: number;
   signal?: AbortSignal;
   outputLimitBytes?: number;
+  shell?: boolean | string;
 }
 
 export interface RunnerProcessResult {
@@ -66,7 +67,20 @@ export function terminateActiveRunners(signal: NodeJS.Signals = "SIGKILL"): void
 }
 
 function killProcessTree(child: ChildProcess, signal: NodeJS.Signals = "SIGTERM"): void {
-  if (process.platform !== "win32" && child.pid) {
+  if (child.killed) return;
+  if (process.platform === "win32" && child.pid) {
+    try {
+      // On Windows, taskkill /T terminates child process and any child processes started by it.
+      // /F forcefully terminates.
+      spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      return;
+    } catch {
+      // Fall back to child.kill
+    }
+  } else if (process.platform !== "win32" && child.pid) {
     try {
       // detached:true makes the child the process-group leader on POSIX.
       process.kill(-child.pid, signal);
@@ -75,7 +89,6 @@ function killProcessTree(child: ChildProcess, signal: NodeJS.Signals = "SIGTERM"
       // The process may have exited between close and cleanup. Fall back to the child handle.
     }
   }
-  if (child.killed) return;
   try {
     child.kill(signal);
   } catch {
@@ -165,10 +178,13 @@ export function runRunnerProcess(
     }
 
     try {
+      const isCmdOrBat = process.platform === "win32" && /\.(?:cmd|bat)$/i.test(executable);
       child = spawn(executable, args, {
         cwd: options.cwd,
         env: options.env,
         detached: process.platform !== "win32",
+        shell: isCmdOrBat || options.shell,
+        windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (error) {
