@@ -24,8 +24,17 @@ const configIndex = process.argv.indexOf("--config");
 const wrapperPath = configIndex > 0 ? process.argv[configIndex + 1] : undefined;
 // Wrapper mode passes the output file through the generated config; CLI-override mode through the env var.
 const outputPath = wrapperPath ? process.env.PW_MCP_JSON_OUTPUT : process.env.PLAYWRIGHT_JSON_OUTPUT_NAME;
+const hasAllure = (fs.existsSync("playwright.config.js") && fs.readFileSync("playwright.config.js", "utf8").includes("allure-playwright")) ||
+                  (wrapperPath && fs.existsSync(wrapperPath) && fs.readFileSync(wrapperPath, "utf8").includes("allure-playwright"));
+const configReporters = [["html", { outputFolder: "html-out" }]];
+if (hasAllure) {
+  configReporters.push(["allure-playwright", { resultsDir: "allure-results" }]);
+  fs.mkdirSync("allure-results", { recursive: true });
+  fs.writeFileSync("allure-results/record.json", "{}");
+}
+configReporters.push(["json", { outputFile: outputPath }]);
 const config = wrapperPath
-  ? { configFile: wrapperPath, wrapperExisted: fs.existsSync(wrapperPath), wrapperSource: fs.readFileSync(wrapperPath, "utf8"), reporter: [["html", { outputFolder: "html-out" }], ["json", { outputFile: outputPath }]] }
+  ? { configFile: wrapperPath, wrapperExisted: fs.existsSync(wrapperPath), wrapperSource: fs.readFileSync(wrapperPath, "utf8"), reporter: configReporters }
   : { reporter: [["json", null]] };
 const testResult = (status, retry, error, attachments = []) => ({ status, duration: 3, retry, ...(error ? { error: { message: error } } : {}), attachments });
 const reports = {
@@ -245,4 +254,54 @@ test("kills a detached process group during timeout escalation", async () => {
   } finally {
     await rm(markerDirectory, { recursive: true, force: true });
   }
+});
+
+test("automatically generates Allure report when configured in project and CLI is present", async () => {
+  await withFakeProject(async (root) => {
+    // 1. Configure allure-playwright in playwright.config.js
+    await writeFile(path.join(root, "playwright.config.js"), "module.exports = { reporter: [['html'], ['allure-playwright']] };\n");
+    // 2. Add fake allure-playwright package
+    const adapterPath = path.join(root, "node_modules", "allure-playwright");
+    await mkdir(adapterPath, { recursive: true });
+    await writeFile(path.join(adapterPath, "package.json"), JSON.stringify({ name: "allure-playwright", version: "2.0.0", main: "index.js" }));
+    await writeFile(path.join(adapterPath, "index.js"), "module.exports = {};\n");
+    // 3. Add fake allure cli package
+    const allureCliPath = path.join(root, "node_modules", "allure");
+    await mkdir(allureCliPath, { recursive: true });
+    await writeFile(path.join(allureCliPath, "package.json"), JSON.stringify({ name: "allure", version: "3.0.0", main: "cli.js", bin: { allure: "cli.js" } }));
+    const fakeAllureScript = `
+const fs = require("node:fs");
+if (process.env.TEST_ALLURE_FAIL === "1") {
+  process.stderr.write("allure: failed to compile\\n");
+  process.exit(1);
+}
+fs.mkdirSync("allure-report", { recursive: true });
+fs.writeFileSync("allure-report/index.html", "<html>Allure Report</html>");
+`;
+    await writeFile(path.join(allureCliPath, "cli.js"), fakeAllureScript);
+
+    // Run test: auto-generation should trigger and succeed
+    const result = await runPlaywrightTest({ specPath: "fake.spec.ts", projectRoot: root });
+    assert.equal(result.status, "passed");
+    assert.equal(result.nativeReports?.allureReportPath, "allure-report/index.html");
+    assert.equal(existsSync(path.join(root, "allure-report", "index.html")), true);
+    assert.match(result.reportPromptDirective ?? "", /Allure Report was automatically generated at allure-report\/index\.html/);
+
+    // Run test with generateAllureReport: false -> auto-generation suppressed
+    const resultDisabled = await runPlaywrightTest({ specPath: "fake.spec.ts", projectRoot: root, generateAllureReport: false });
+    assert.equal(resultDisabled.status, "passed");
+    assert.equal(resultDisabled.nativeReports?.allureReportPath, undefined);
+
+    // Run test with CLI failure: suite should still pass, warning recorded in nativeReports
+    process.env.TEST_ALLURE_FAIL = "1";
+    try {
+      await rm(path.join(root, "allure-report"), { recursive: true, force: true });
+      const resultFailed = await runPlaywrightTest({ specPath: "fake.spec.ts", projectRoot: root });
+      assert.equal(resultFailed.status, "passed");
+      assert.equal(resultFailed.nativeReports?.allureReportPath, undefined);
+      assert.match(resultFailed.nativeReports?.allureGenerationWarning ?? "", /Allure generation/);
+    } finally {
+      delete process.env.TEST_ALLURE_FAIL;
+    }
+  });
 });

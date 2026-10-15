@@ -97,7 +97,14 @@ export const runPlaywrightTestOutputShape = {
   reportPath: z.string().optional(),
   traceZipPath: z.string().optional(),
   videoPath: z.string().optional(),
-  nativeReports: z.object({ htmlReportPath: z.string().optional(), allureResultsPath: z.string().optional() }).optional(),
+  nativeReports: z
+    .object({
+      htmlReportPath: z.string().optional(),
+      allureResultsPath: z.string().optional(),
+      allureReportPath: z.string().optional(),
+      allureGenerationWarning: z.string().optional(),
+    })
+    .optional(),
   qualityScore: z.object({}).passthrough().optional(),
   qualityReportHtmlPath: z.string().optional(),
   healingGateDirective: z.string().optional(),
@@ -196,7 +203,13 @@ export const checkTestPrerequisitesOutputShape = {
       browsers: z.object({ status: z.enum(["installed", "outdated", "missing", "unknown"]) }).passthrough(),
     })
     .passthrough(),
-  allure: z.object({ status: z.enum(["ready", "not_configured", "setup_required", "results_missing"]) }).passthrough(),
+  allure: z
+    .object({
+      status: z.enum(["ready", "not_configured", "setup_required", "results_missing"]),
+      autoGenerateReady: z.boolean().optional(),
+      setupGuide: z.object({}).passthrough().optional(),
+    })
+    .passthrough(),
   nextSteps: z.array(z.string()),
   warnings: z.array(z.string()),
 };

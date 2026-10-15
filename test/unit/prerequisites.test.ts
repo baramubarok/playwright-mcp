@@ -63,7 +63,35 @@ test("detects existing Allure results and report paths without generating them",
     const result = checkTestPrerequisites(root);
     assert.equal(result.allure.resultsAvailable, true);
     assert.equal(result.allure.reportAvailable, true);
+    assert.equal(result.allure.autoGenerateReady, false);
+    assert.equal(result.allure.setupGuide.isConfigured, false);
+    assert.ok(result.allure.setupGuide.packagesToInstall.includes("allure-playwright"));
     assert.equal(result.allure.status, "not_configured");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("detects Allure as autoGenerateReady when adapter, cli and config are present", async () => {
+  const root = await makeProject(
+    JSON.stringify({ devDependencies: { "@playwright/test": "1.0.0", "allure-playwright": "2.0.0" } }),
+    "export default { reporter: [['allure-playwright']] };\n",
+  );
+  try {
+    const nodeModules = path.join(root, "node_modules");
+    await writePackage(path.join(nodeModules, "allure-playwright"), "allure-playwright");
+    await writePackage(path.join(nodeModules, "allure-commandline"), "allure-commandline", { bin: { allure: "bin/allure" } });
+    await mkdir(path.join(nodeModules, "allure-commandline", "bin"), { recursive: true });
+    await writeFile(path.join(nodeModules, "allure-commandline", "bin", "allure"), "");
+
+    const result = checkTestPrerequisites(root);
+    assert.equal(result.allure.configuredReporter, true);
+    assert.equal(result.allure.adapterInstalled, true);
+    assert.equal(result.allure.cliAvailable, true);
+    assert.equal(result.allure.autoGenerateReady, true);
+    assert.equal(result.allure.setupGuide.isConfigured, true);
+    assert.deepEqual(result.allure.setupGuide.packagesToInstall, []);
+    assert.ok(result.allure.setupGuide.notes.length > 0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

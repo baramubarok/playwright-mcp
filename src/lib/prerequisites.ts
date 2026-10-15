@@ -36,6 +36,13 @@ export interface PlaywrightPrerequisites {
   status: "ready" | "setup_required";
 }
 
+export interface AllureSetupGuide {
+  isConfigured: boolean;
+  packagesToInstall: string[];
+  configSnippet: string;
+  notes: string[];
+}
+
 export interface AllurePrerequisites {
   adapterInstalled: boolean;
   adapterVersion?: string;
@@ -44,6 +51,8 @@ export interface AllurePrerequisites {
   configuredReporter: boolean;
   resultsAvailable: boolean;
   reportAvailable: boolean;
+  autoGenerateReady: boolean;
+  setupGuide: AllureSetupGuide;
   status: "ready" | "not_configured" | "setup_required" | "results_missing";
 }
 
@@ -296,6 +305,21 @@ export function checkTestPrerequisites(projectRoot: string): TestPrerequisites {
     else allureStatus = "ready";
   }
 
+  const autoGenerateReady = Boolean(configuredReporter && allureAdapter && allureCliPath);
+  const packagesToInstall: string[] = [];
+  if (!allureAdapter) packagesToInstall.push("allure-playwright");
+  if (!allureCliPath) packagesToInstall.push("allure-commandline");
+  const setupGuide: AllureSetupGuide = {
+    isConfigured: autoGenerateReady,
+    packagesToInstall,
+    configSnippet: "reporter: [['html'], ['allure-playwright']],",
+    notes: [
+      "Java (JRE 8+) is required for allure-commandline to generate reports.",
+      "When configured, test runs automatically generate 'allure-report/index.html'.",
+      "Run 'npx allure open ./allure-report' to view generated reports in browser.",
+    ],
+  };
+
   const nextSteps: string[] = [];
   const warnings: string[] = [];
   if (!playwrightPackage) nextSteps.push("Install Playwright in the target project: npm install -D @playwright/test");
@@ -353,6 +377,8 @@ export function checkTestPrerequisites(projectRoot: string): TestPrerequisites {
       configuredReporter,
       resultsAvailable,
       reportAvailable,
+      autoGenerateReady,
+      setupGuide,
       status: allureStatus,
     },
     nextSteps,

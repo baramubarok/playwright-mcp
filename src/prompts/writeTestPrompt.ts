@@ -49,4 +49,22 @@ Step 5: Write clean, readable test cases in 'specs/{feature}.spec.ts' wrapped in
         After implementing real actions and outcome assertions, change 'test.fixme' to 'test' and remove the marker.
 Step 6: Run 'score_test_quality' on the spec file: 'scaffold.skeleton' must be false, semantic % high, and zero anti-patterns before running.
         Comments and strings are ignored by the scorer, so commented-out examples never count as assertions.
+
+===================================================================
+4. INITIAL SETUP & ALLURE REPORT ONBOARDING
+===================================================================
+When setting up testing or scaffolding tests in a project for the first time:
+1. Always run 'check_test_prerequisites' to verify the environment.
+2. If Allure Report is not configured ('allure.autoGenerateReady' is false or 'allure.status' is 'not_configured'):
+   - In environments supporting interactive questions ('ask_question'), prompt the user:
+     "Would you like to configure Allure Report for this project? (Automatically compiles rich HTML reports after every test run)"
+     Options:
+     1. "(Recommended) Yes, add Allure Report (auto-generate after tests)"
+     2. "No, use Playwright native and Quality HTML reports only"
+   - In standard chat: Present the options clearly in chat before proceeding.
+   - If user confirms:
+     * Guide/assist installation of dependencies: 'npm install -D allure-playwright allure-commandline' (or yarn/pnpm).
+     * Add ['allure-playwright'] to the 'reporter' list in 'playwright.config.*' (e.g. reporter: [['html'], ['allure-playwright']]).
+     * Remind the user that Java (JRE 8+) is required for Allure report compilation.
+     * Once configured, 'run_playwright_test' will automatically compile 'allure-report/index.html' after every test execution!
 `;

@@ -126,7 +126,7 @@ registerJsonTool(
     description:
       "Run Playwright tests in the target project (pass a spec file, a directory, or omit specPath and pass grep for tag-only runs like @smoke or @regression) and return a bounded, structured result: explicit status, counts, runner/process metadata, up to 5 failures with location, error type, recent steps, " +
       "browser console errors, page errors and failed requests (from trace.zip and/or the scaffolded diagnostics fixture), screenshot/trace/video/error-context paths, and a compact qualityScore. " +
-      "The project's own reporters (HTML, Allure) keep running. Use detail:'full' or get_failure_details for more. " +
+      "The project's own reporters keep running, and Allure reports (allure-report/index.html) are automatically compiled when Allure is configured in the project. Use detail:'full' or get_failure_details for more. " +
       "TOKEN ECONOMY INSTRUCTION: In your response, provide a clean, compact 2–3 line summary (status, duration, video link, and failure cause) rather than dumping large markdown tables into chat. " +
       "If tests fail, analyze the error and formulate a concrete fix proposal in '.page.ts'. " +
       "To confirm with the user before applying fixes: " +
@@ -144,7 +144,7 @@ registerJsonTool(
   {
     title: "Check test prerequisites",
     description:
-      "Read-only preflight check for a target project. Detects the local (or workspace-hoisted) Playwright package, CLI, config, browser builds matching the installed Playwright version, branded channels, optional Allure adapter/CLI, and report artifacts — without installing packages or downloading browsers.",
+      "Read-only preflight check for a target project. Detects the local (or workspace-hoisted) Playwright package, CLI, config, browser builds matching the installed Playwright version, branded channels, optional Allure adapter/CLI readiness and setup guide, and report artifacts — without installing packages or downloading browsers.",
     inputSchema: checkTestPrerequisitesInputShape,
     outputSchema: checkTestPrerequisitesOutputShape,
   },

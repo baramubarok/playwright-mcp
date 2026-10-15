@@ -396,6 +396,7 @@ Dijalankan dari `/home/baramubarok/Development/Project/Personal/MCP/playwright-g
 | 2026-10-07 | `npm audit fix` (semver-compatible) + hapus `fast-glob`/`diff` | Accepted | SDK MCP naik ke 1.32.1 (dalam `^1.30.0`); seluruh test lulus |
 | 2026-10-15 | Multi-OS Windows tree-kill (`taskkill /T /F`) dan support shell untuk `.cmd`/`.bat` | Accepted | Mencegah browser zombie di Windows saat timeout/cancel |
 | 2026-10-15 | Eksekusi multi-spec (direktori) dan tag-only (`specPath` opsional, filter `grep` e.g. `@smoke`, `@regression`) | Accepted | Memudahkan QA menjalankan subset test suite secara global |
+| 2026-10-15 | Allure auto-generation setelah test run (`runPlaywrightTest`) dan panduan onboarding interaktif (`checkTestPrerequisites`) | Accepted | Allure dikompilasi otomatis tanpa blocking server; `setupGuide` membantu setup awal |
 
 ---
 

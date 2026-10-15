@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { generateTestReport } from "../../src/tools/generateTestReport.js";
+import { compileAllureReport, generateTestReport } from "../../src/tools/generateTestReport.js";
 
 // Fake Allure 3 style JavaScript CLI; its behaviour is selected through ALLURE_FAKE_MODE.
 const fakeAllureCli = `
@@ -93,5 +93,18 @@ test("distinguishes missing results, missing CLI and locate-only reporters", asy
     process.env.PATH = previousPath;
     await rm(noResults, { recursive: true, force: true });
     await rm(noCli, { recursive: true, force: true });
+  }
+});
+
+test("compileAllureReport directly compiles reports and returns structured outcome", async () => {
+  const root = await makeProject({ results: true, cli: true });
+  try {
+    const result = await withMode("ok", () => compileAllureReport(root));
+    assert.equal(result.status, "generated");
+    assert.equal(result.exists, true);
+    assert.equal(result.reportPath, path.join(root, "allure-report", "index.html"));
+    assert.equal(result.commandToOpen, "npx allure open ./allure-report");
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });

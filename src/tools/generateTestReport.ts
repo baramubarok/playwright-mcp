@@ -1,9 +1,10 @@
 import { existsSync, readdirSync } from "node:fs";
+import path from "node:path";
 import { z } from "zod";
 import { findProjectRoot } from "../lib/config.js";
 import { resolveProjectPath } from "../lib/pathSecurity.js";
 import { checkTestPrerequisites } from "../lib/prerequisites.js";
-import { runRunnerProcess, type RunnerProcessResult } from "../lib/runnerProcess.js";
+import { runRunnerProcess } from "../lib/runnerProcess.js";
 import { tailText } from "../lib/text.js";
 
 export const ALLURE_GENERATE_TIMEOUT_MS = 120_000;
@@ -56,17 +57,100 @@ export interface GenerateTestReportOptions {
   timeoutMs?: number;
 }
 
-function runAllureCli(cliPath: string, root: string, options: GenerateTestReportOptions): Promise<RunnerProcessResult> {
-  const args = ["generate", "allure-results", "-o", "allure-report", "--clean"];
+export interface CompileAllureReportOptions extends GenerateTestReportOptions {
+  resultsDir?: string;
+  outputDir?: string;
+}
+
+export interface CompileAllureReportResult {
+  status: "generated" | "setup_required" | "generation_failed";
+  reportPath?: string;
+  exists: boolean;
+  message: string;
+  commandToOpen?: string;
+  generator?: {
+    command: string;
+    exitCode: number | null;
+    signal: NodeJS.Signals | null;
+    timedOut: boolean;
+    durationMs: number;
+    stderrTail?: string;
+  };
+}
+
+export async function compileAllureReport(
+  projectRoot: string,
+  options: CompileAllureReportOptions = {},
+): Promise<CompileAllureReportResult> {
+  const resultsFolder = options.resultsDir ?? "allure-results";
+  const outputFolder = options.outputDir ?? "allure-report";
+  const allureResultsDir = resolveProjectPath(resultsFolder, projectRoot);
+  const allureReportIndex = resolveProjectPath(path.join(outputFolder, "index.html"), projectRoot);
+
+  if (!existsSync(allureResultsDir) || readdirSync(allureResultsDir).length === 0) {
+    return {
+      status: "setup_required",
+      exists: false,
+      message:
+        `Allure results not found at ${allureResultsDir}. ` +
+        `Install allure-playwright (npm i -D allure-playwright), add ['allure-playwright'] to reporter in playwright.config.*, then re-run tests.`,
+    };
+  }
+
+  const cliPath = checkTestPrerequisites(projectRoot).allure.cliPath;
+  if (!cliPath) {
+    return {
+      status: "setup_required",
+      exists: false,
+      message: "No local Allure CLI found. Install one manually (npm i -D allure-commandline, or allure for Allure 3) — it is never downloaded automatically.",
+    };
+  }
+
+  const args = ["generate", resultsFolder, "-o", outputFolder, "--clean"];
   // Allure 3 ships a JavaScript CLI; allure-commandline ships a shell launcher for the Java CLI.
   const isNodeScript = /\.(?:c|m)?js$/.test(cliPath);
-  return runRunnerProcess(isNodeScript ? process.execPath : cliPath, isNodeScript ? [cliPath, ...args] : args, {
-    cwd: root,
+  const result = await runRunnerProcess(isNodeScript ? process.execPath : cliPath, isNodeScript ? [cliPath, ...args] : args, {
+    cwd: projectRoot,
     env: process.env,
     timeoutMs: options.timeoutMs ?? ALLURE_GENERATE_TIMEOUT_MS,
     signal: options.signal,
     outputLimitBytes: 16 * 1024,
   });
+
+  const generator = {
+    command: `${cliPath} ${args.join(" ")}`,
+    exitCode: result.exitCode,
+    signal: result.signal,
+    timedOut: result.timedOut,
+    durationMs: result.durationMs,
+    ...(result.stderr ? { stderrTail: tailText(result.stderr, 1_500) } : {}),
+  };
+  const indexExists = existsSync(allureReportIndex);
+  if (result.spawnError || result.timedOut || result.cancelled || result.exitCode !== 0 || !indexExists) {
+    const reason = result.spawnError
+      ? `could not start (${result.spawnError})`
+      : result.timedOut
+        ? `timed out after ${result.timeoutMs} ms`
+        : result.cancelled
+          ? "was cancelled"
+          : result.exitCode !== 0
+            ? `exited with code ${result.exitCode ?? `signal ${result.signal}`}`
+            : `finished but ${outputFolder}/index.html was not written`;
+    return {
+      status: "generation_failed",
+      exists: indexExists,
+      message: `Allure generation ${reason}. See generator.stderrTail.`,
+      generator,
+    };
+  }
+  return {
+    status: "generated",
+    reportPath: allureReportIndex,
+    exists: true,
+    message: `Allure Report generated successfully at: ${allureReportIndex}`,
+    commandToOpen: `npx allure open ./${outputFolder}`,
+    generator,
+  };
 }
 
 export async function generateTestReport(
@@ -108,68 +192,10 @@ export async function generateTestReport(
     };
   }
 
-  const allureResultsDir = resolveProjectPath("allure-results", root);
-  const allureReportIndex = resolveProjectPath("allure-report/index.html", root);
-  if (!existsSync(allureResultsDir) || readdirSync(allureResultsDir).length === 0) {
-    return {
-      reporter: "allure",
-      mode: "generate",
-      status: "setup_required",
-      exists: false,
-      message:
-        `Allure results not found at ${allureResultsDir}. ` +
-        `Install allure-playwright (npm i -D allure-playwright), add ['allure-playwright'] to reporter in playwright.config.*, then re-run tests.`,
-    };
-  }
-
-  const cliPath = checkTestPrerequisites(root).allure.cliPath;
-  if (!cliPath) {
-    return {
-      reporter: "allure",
-      mode: "generate",
-      status: "setup_required",
-      exists: false,
-      message: "No local Allure CLI found. Install one manually (npm i -D allure-commandline, or allure for Allure 3) — it is never downloaded automatically.",
-    };
-  }
-
-  const result = await runAllureCli(cliPath, root, options);
-  const generator = {
-    command: `${cliPath} generate allure-results -o allure-report --clean`,
-    exitCode: result.exitCode,
-    signal: result.signal,
-    timedOut: result.timedOut,
-    durationMs: result.durationMs,
-    ...(result.stderr ? { stderrTail: tailText(result.stderr, 1_500) } : {}),
-  };
-  const indexExists = existsSync(allureReportIndex);
-  if (result.spawnError || result.timedOut || result.cancelled || result.exitCode !== 0 || !indexExists) {
-    const reason = result.spawnError
-      ? `could not start (${result.spawnError})`
-      : result.timedOut
-        ? `timed out after ${result.timeoutMs} ms`
-        : result.cancelled
-          ? "was cancelled"
-          : result.exitCode !== 0
-            ? `exited with code ${result.exitCode ?? `signal ${result.signal}`}`
-            : "finished but allure-report/index.html was not written";
-    return {
-      reporter: "allure",
-      mode: "generate",
-      status: "generation_failed",
-      exists: indexExists,
-      message: `Allure generation ${reason}. See generator.stderrTail.`,
-      generator,
-    };
-  }
+  const compileResult = await compileAllureReport(root, options);
   return {
     reporter: "allure",
     mode: "generate",
-    status: "generated",
-    reportPath: allureReportIndex,
-    exists: true,
-    message: `Allure Report generated successfully at: ${allureReportIndex}`,
-    commandToOpen: "npx allure open ./allure-report",
-    generator,
+    ...compileResult,
   };
 }

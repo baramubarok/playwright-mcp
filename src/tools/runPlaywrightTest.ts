@@ -16,6 +16,7 @@ import { classifyRunnerOutcome, type RunnerError, type SuiteStatus } from "../li
 import { runRunnerProcess, validateRunnerTimeout } from "../lib/runnerProcess.js";
 import { prepareRunConfig, type ReporterStrategy } from "../lib/runConfig.js";
 import { enrichFailureDetail } from "../lib/failureDiagnostics.js";
+import { compileAllureReport } from "./generateTestReport.js";
 import {
   boundRunnerText,
   compactQualityScore,
@@ -48,6 +49,12 @@ export const runPlaywrightTestInputShape = {
     .boolean()
     .optional()
     .describe("Set to true to generate the standalone visual quality report at test-results/quality-report.html."),
+  generateAllureReport: z
+    .boolean()
+    .optional()
+    .describe(
+      "Explicitly enable or disable auto-generating the Allure report (allure-report/index.html) after the test run. If omitted, auto-generation runs automatically whenever Allure is configured in the project and the local Allure CLI is available.",
+    ),
   timeoutMs: z.number().int().min(100).max(900_000).optional().describe("Maximum runner duration in milliseconds (default 120000; allowed range 100–900000)."),
   detail: z
     .enum(["summary", "full"])
@@ -83,6 +90,8 @@ export interface RunnerSummary {
 export interface NativeReports {
   htmlReportPath?: string;
   allureResultsPath?: string;
+  allureReportPath?: string;
+  allureGenerationWarning?: string;
 }
 
 export interface RunPlaywrightTestOutput {
@@ -283,7 +292,31 @@ export async function runPlaywrightTest(
   const projectReporters = runConfig.strategy === "config_wrapper" ? configuredReporters(report).slice(0, -1) : [];
   const preservedReporters = projectReporters.map(([name]) => name);
   const configDirectory = prerequisites.playwright.configPath ? path.dirname(prerequisites.playwright.configPath) : projectRoot;
-  const nativeReports = locateNativeReports(projectReporters, configDirectory, projectRoot);
+  const nativeReports: NativeReports = locateNativeReports(projectReporters, configDirectory, projectRoot) ?? {};
+
+  const allureResultsDir = nativeReports.allureResultsPath ?? path.resolve(projectRoot, "allure-results");
+  const resultsExist = existsSync(allureResultsDir);
+  const shouldAutoGenerateAllure =
+    input.generateAllureReport ?? (prerequisites.allure.configuredReporter && prerequisites.allure.cliAvailable);
+
+  if (shouldAutoGenerateAllure && resultsExist) {
+    try {
+      const resultsFolder = path.relative(projectRoot, allureResultsDir) || "allure-results";
+      const compileResult = await compileAllureReport(projectRoot, {
+        resultsDir: resultsFolder,
+        signal: options.signal,
+      });
+      if (compileResult.status === "generated" && compileResult.reportPath) {
+        nativeReports.allureReportPath = compileResult.reportPath;
+      } else if (compileResult.status === "generation_failed") {
+        nativeReports.allureGenerationWarning = compileResult.message;
+      } else if (compileResult.status === "setup_required" && input.generateAllureReport === true) {
+        nativeReports.allureGenerationWarning = compileResult.message;
+      }
+    } catch (error) {
+      nativeReports.allureGenerationWarning = `Allure report generation failed: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
 
   let qualityScore: ComprehensiveQualityScore | undefined;
   let qualityReportHtmlPath: string | undefined;
@@ -365,14 +398,22 @@ export async function runPlaywrightTest(
     reportPath: report ? jsonReportPath : undefined,
     traceZipPath: relative(traceAttachment?.path),
     videoPath: relative(videoAttachment?.path),
-    ...(nativeReports
-      ? { nativeReports: { htmlReportPath: relative(nativeReports.htmlReportPath), allureResultsPath: relative(nativeReports.allureResultsPath) } }
+    ...(Object.keys(nativeReports).length > 0
+      ? {
+          nativeReports: {
+            htmlReportPath: relative(nativeReports.htmlReportPath),
+            allureResultsPath: relative(nativeReports.allureResultsPath),
+            allureReportPath: relative(nativeReports.allureReportPath),
+            ...(nativeReports.allureGenerationWarning ? { allureGenerationWarning: nativeReports.allureGenerationWarning } : {}),
+          },
+        }
       : {}),
     qualityScore: qualityScore ? (level === "full" ? qualityScore : compactQualityScore(qualityScore, level)) : undefined,
     qualityReportHtmlPath: relative(qualityReportHtmlPath),
     healingGateDirective: failures.length > 0 ? HEALING_GATE_DIRECTIVE : undefined,
-    reportPromptDirective:
-      "After summarizing the result, prompt the user if they want to generate and view the visual report (Quality HTML / Playwright HTML / Allure). Do not generate reports automatically unless confirmed.",
+    reportPromptDirective: nativeReports.allureReportPath
+      ? `Allure Report was automatically generated at ${relative(nativeReports.allureReportPath)}. Prompt the user with 'npx allure open ./allure-report' to view it, or ask if they would like to generate the standalone Quality HTML report.`
+      : "After summarizing the result, prompt the user if they want to generate and view the visual report (Quality HTML / Playwright HTML / Allure). Do not generate reports automatically unless confirmed.",
   };
   return fitToBudget(output, level);
 }

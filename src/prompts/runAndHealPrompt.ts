@@ -42,17 +42,22 @@ Do NOT dump large markdown tables or raw JSON logs into chat. Instead, output a 
   * Otherwise, present the numbered choices in chat before executing the patch.
 
 ===================================================================
-4. ON-DEMAND VISUAL REPORT POPUP / CONFIRMATION
+4. VISUAL REPORTS & ALLURE INTEGRATION
 ===================================================================
-Do NOT automatically generate or open heavy visual reports on every run.
-After reporting the concise 2-3 line test summary:
-- In environments supporting interactive modal popups (e.g. 'ask_question'), render a popup modal asking the user:
-  "Test execution finished with status [Passed/Failed]. Would you like to generate and open a visual test report?"
-  Options:
-  1. "(Recommended) Generate Standalone Quality Report (HTML Dashboard)"
-  2. "Generate Playwright Native HTML Report"
-  3. "Generate Allure Report"
-  4. "No, skip report generation (Keep chat lean)"
-- In standard chat environments: Present the numbered choices to the user in chat.
-- ONLY when the user selects a report option, call the 'generate_test_report' tool with the requested reporter ('quality', 'html', or 'allure').
+- Auto-Generated Allure Report:
+  * When Allure is configured in the project (or detected via 'check_test_prerequisites'), 'run_playwright_test' automatically compiles 'allure-report/index.html' (returned in 'nativeReports.allureReportPath').
+  * Inform the user that the Allure report is ready: "📊 Allure Report: npx allure open ./allure-report"
+  * Never run blocking 'allure open' processes in MCP background tasks.
+- Additional On-Demand Reports (Quality HTML / Playwright HTML):
+  * After reporting the concise 2-3 line test summary:
+    In environments supporting interactive modal popups (e.g. 'ask_question'), prompt the user:
+    "Test execution finished with status [Passed/Failed]. Would you like to view or generate visual reports?"
+    Options:
+    1. "(Recommended) View Allure Report (open via: npx allure open ./allure-report)" [if nativeReports.allureReportPath exists]
+    2. "Generate Standalone Quality Report (HTML Dashboard)"
+    3. "Generate Playwright Native HTML Report"
+    4. "No, skip additional reports (Keep chat lean)"
+  * In standard chat: Present the numbered choices clearly in chat.
+  * ONLY when the user selects a report option, call the 'generate_test_report' tool with the requested reporter ('quality' or 'html').
+  * If Allure is not configured yet, offer to assist with Allure setup so future runs automatically compile Allure reports.
 `;
