@@ -56,7 +56,7 @@ Step 6: Run 'score_test_quality' on the spec file: 'scaffold.skeleton' must be f
 When setting up testing or scaffolding tests in a project for the first time:
 1. Always run 'check_test_prerequisites' to verify the environment.
 2. If Allure Report is not configured ('allure.autoGenerateReady' is false or 'allure.status' is 'not_configured'):
-   - In environments supporting interactive questions ('ask_question'), prompt the user:
+   - In environments supporting interactive dialog tools ('ask_question', 'vscode_askQuestions), use them to prompt the user:
      "Would you like to configure Allure Report for this project? (Automatically compiles rich HTML reports after every test run)"
      Options:
      1. "(Recommended) Yes, add Allure Report (auto-generate after tests)"
