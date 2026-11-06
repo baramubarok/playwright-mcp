@@ -28,7 +28,7 @@ export interface ConfigAnalysis {
 }
 
 export const TOP_LEVEL_SETTINGS = ["retries", "workers", "fullyParallel", "forbidOnly", "reporter"] as const;
-export const USE_SETTINGS = ["trace", "screenshot", "video"] as const;
+export const USE_SETTINGS = ["trace", "screenshot", "video", "baseURL", "testIdAttribute"] as const;
 
 function unwrap(node: ts.Expression): ts.Expression {
   let current = node;

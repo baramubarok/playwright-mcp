@@ -116,3 +116,31 @@ test("returns an actionable warning when no Playwright config can be found", asy
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("warns when baseURL is hardcoded but not when it comes from the environment", async () => {
+  const useBlock = (baseURL: string) =>
+    `export default { retries: 0, forbidOnly: true, fullyParallel: true, reporter: [['html']], use: { baseURL: ${baseURL}, trace: 'on', screenshot: 'on', video: 'on' } };\n`;
+  await withConfig("playwright.config.ts", useBlock("'https://app.example.com'"), (root) => {
+    const result = checkPlaywrightConfig({ projectRoot: root });
+    assert.ok(result.warnings.some((warning) => /`baseURL` is hardcoded/.test(warning)));
+  });
+  await withConfig("playwright.config.ts", useBlock("process.env.BASE_URL"), (root) => {
+    const result = checkPlaywrightConfig({ projectRoot: root });
+    assert.equal(result.settingDetails?.baseURL.kind, "expression");
+    assert.deepEqual(result.warnings, []);
+  });
+});
+
+test("warns when ID_SELECTOR in .env is not wired to use.testIdAttribute", async () => {
+  const config = (testIdAttribute: string) =>
+    `export default { retries: 0, forbidOnly: true, fullyParallel: true, reporter: [['html']], use: { ${testIdAttribute} trace: 'on', screenshot: 'on', video: 'on' } };\n`;
+  await withConfig("playwright.config.ts", config(""), async (root) => {
+    await writeFile(path.join(root, ".env"), "BASE_URL=https://app.example.com\nID_SELECTOR=qa\n");
+    const result = checkPlaywrightConfig({ projectRoot: root });
+    assert.ok(result.warnings.some((warning) => /ID_SELECTOR=qa is set in \.env/.test(warning)));
+  });
+  await withConfig("playwright.config.ts", config("testIdAttribute: 'data-qa',"), async (root) => {
+    await writeFile(path.join(root, ".env"), "BASE_URL=https://app.example.com\nID_SELECTOR=qa\n");
+    assert.deepEqual(checkPlaywrightConfig({ projectRoot: root }).warnings, []);
+  });
+});

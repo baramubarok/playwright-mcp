@@ -9,6 +9,7 @@ import { scoreTestQuality, scoreTestQualityInputShape } from "./tools/scoreTestQ
 import { checkPlaywrightConfig, checkPlaywrightConfigInputShape } from "./tools/checkPlaywrightConfig.js";
 import { generateTestReport, generateTestReportInputShape } from "./tools/generateTestReport.js";
 import { scaffoldTestDomain, scaffoldTestDomainInputShape } from "./tools/scaffoldTestDomain.js";
+import { initQaProject, initQaProjectInputShape } from "./tools/initQaProject.js";
 import { checkTestPrerequisitesTool, checkTestPrerequisitesInputShape } from "./tools/checkTestPrerequisites.js";
 import { WRITE_TEST_PROMPT_NAME, writeTestPromptText } from "./prompts/writeTestPrompt.js";
 import { RUN_AND_HEAL_PROMPT_NAME, runAndHealPromptText } from "./prompts/runAndHealPrompt.js";
@@ -22,6 +23,7 @@ import {
   checkTestPrerequisitesOutputShape,
   generateTestReportOutputShape,
   getFailureDetailsOutputShape,
+  initQaProjectOutputShape,
   runPlaywrightTestOutputShape,
   scaffoldTestDomainOutputShape,
   scoreTestQualityOutputShape,
@@ -103,6 +105,24 @@ registerJsonTool(
     const resolved = setProjectRoot(input.projectRoot);
     return { projectRoot: resolved, message: `PROJECT_ROOT set to ${resolved}` };
   },
+);
+
+registerJsonTool(
+  "init_qa_project",
+  {
+    title: "Initialize QA automation project",
+    description:
+      "Create a standalone Playwright automation repository for QA (separate from the frontend repo): package.json, playwright.config.ts, tsconfig, .env/.env.example (BASE_URL, API_URL, ID_SELECTOR, TEST_USER, TEST_PASSWORD), .gitignore, docs/test-case/ (test case files) and assets/ (files for uploads), plus tests/e2e/support helpers. " +
+      "Existing files are skipped unless overwrite is true, and .env is never overwritten. The new project becomes the active project root.",
+    inputSchema: initQaProjectInputShape,
+    outputSchema: initQaProjectOutputShape,
+  },
+  (input) => {
+    const result = initQaProject(input);
+    setProjectRoot(result.projectRoot);
+    return result;
+  },
+  (result) => `Initialized QA project at ${result.projectRoot}: ${result.createdFiles.length} created, ${result.skippedFiles.length} skipped.`,
 );
 
 registerJsonTool(

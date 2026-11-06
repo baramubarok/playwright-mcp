@@ -83,6 +83,7 @@ test("compiled MCP server completes initialize and exposes the tool catalog", as
     "check_test_prerequisites",
     "generate_test_report",
     "get_failure_details",
+    "init_qa_project",
     "run_playwright_test",
     "scaffold_test_domain",
     "score_test_quality",

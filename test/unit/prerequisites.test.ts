@@ -192,3 +192,35 @@ test("detects outdated or incomplete browser builds and branded channels", async
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("reports QA layout: .env keys, docs/test-case and assets without exposing values", async () => {
+  const root = await makeProject("{}\n");
+  try {
+    const empty = checkTestPrerequisites(root);
+    assert.equal(empty.qa.envFileFound, false);
+    assert.equal(empty.qa.ready, false);
+    assert.equal(empty.qa.testIdAttribute, "data-testid");
+    assert.match(empty.nextSteps.join("\n"), /init_qa_project/);
+    assert.match(empty.nextSteps.join("\n"), /docs\/test-case/);
+
+    await writeFile(path.join(root, ".env"), "BASE_URL=https://app.example.com\nID_SELECTOR=cy\nTEST_PASSWORD=super-secret\n");
+    await mkdir(path.join(root, "docs", "test-case"), { recursive: true });
+    await writeFile(path.join(root, "docs", "test-case", "example.feature"), "Feature: example\n");
+    await writeFile(path.join(root, "docs", "test-case", "login.feature"), "Feature: login\n");
+    await mkdir(path.join(root, "assets"));
+    await writeFile(path.join(root, "assets", "README.md"), "# assets\n");
+
+    const ready = checkTestPrerequisites(root);
+    assert.equal(ready.qa.envFileFound, true);
+    assert.deepEqual(ready.qa.missingRequiredEnv, []);
+    assert.deepEqual(ready.qa.missingOptionalEnv, ["API_URL", "TEST_USER"]);
+    assert.equal(ready.qa.testIdAttribute, "data-cy");
+    assert.deepEqual(ready.qa.testCaseDir, { found: true, path: "docs/test-case", fileCount: 1 });
+    assert.deepEqual(ready.qa.assetsDir, { found: true, path: "assets", fileCount: 0 });
+    assert.equal(ready.qa.ready, true);
+    assert.ok(ready.warnings.some((warning) => /API_URL is empty/.test(warning)));
+    assert.doesNotMatch(JSON.stringify(ready), /super-secret/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

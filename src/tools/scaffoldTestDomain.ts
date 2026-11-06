@@ -368,7 +368,7 @@ test.describe('${featurePascal} Flow', () => {
  * as `mcp-diagnostics` when a test does not end with its expected status, so run_playwright_test and
  * get_failure_details can report console errors, page errors and failed requests per test.
  */
-const DIAGNOSTICS_FIXTURE_SOURCE = `
+export const DIAGNOSTICS_FIXTURE_SOURCE = `
 import { test as base, expect } from '@playwright/test';
 
 const MAX_EVENTS = 20;

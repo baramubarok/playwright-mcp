@@ -189,6 +189,16 @@ export const scaffoldTestDomainOutputShape = {
   nextSteps: z.array(z.string()),
 };
 
+export const initQaProjectOutputShape = {
+  projectRoot: z.string(),
+  createdFiles: z.array(z.string()),
+  skippedFiles: z.array(z.string()),
+  envFile: z.string(),
+  env: z.object({ baseUrl: z.string(), apiUrl: z.string(), idSelector: z.string() }),
+  envTodo: z.array(z.string()),
+  nextSteps: z.array(z.string()),
+};
+
 export const checkTestPrerequisitesOutputShape = {
   projectRoot: z.string(),
   workspaceRoot: z.string().optional(),
@@ -203,6 +213,15 @@ export const checkTestPrerequisitesOutputShape = {
       browsers: z.object({ status: z.enum(["installed", "outdated", "missing", "unknown"]) }).passthrough(),
     })
     .passthrough(),
+  qa: z.object({
+    envFileFound: z.boolean(),
+    missingRequiredEnv: z.array(z.string()),
+    missingOptionalEnv: z.array(z.string()),
+    testIdAttribute: z.string(),
+    testCaseDir: z.object({ found: z.boolean(), path: z.string(), fileCount: z.number() }),
+    assetsDir: z.object({ found: z.boolean(), path: z.string(), fileCount: z.number() }),
+    ready: z.boolean(),
+  }),
   allure: z
     .object({
       status: z.enum(["ready", "not_configured", "setup_required", "results_missing"]),

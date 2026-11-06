@@ -3,6 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { findProjectRoot, resolveInProjectRoot } from "../lib/config.js";
 import { analyzePlaywrightConfig, type ReporterAnalysis, type SettingDetail } from "../lib/configAnalysis.js";
+import { readQaEnv } from "../lib/qaEnv.js";
 
 export const checkPlaywrightConfigInputShape = {
   configPath: z
@@ -32,6 +33,8 @@ export interface CheckPlaywrightConfigOutput {
     trace?: string;
     screenshot?: string;
     video?: string;
+    baseURL?: string;
+    testIdAttribute?: string;
     reporter?: string;
   };
   settingDetails?: Record<string, SettingDetail>;
@@ -112,7 +115,7 @@ export function checkPlaywrightConfig(input: CheckPlaywrightConfigInput): CheckP
 
   const analysis = analyzePlaywrightConfig(content, relativeOrAbsolutePath);
   const textScan = !analysis.found;
-  const keys = ["retries", "workers", "fullyParallel", "forbidOnly", "trace", "screenshot", "video", "reporter"] as const;
+  const keys = ["retries", "workers", "fullyParallel", "forbidOnly", "trace", "screenshot", "video", "baseURL", "testIdAttribute", "reporter"] as const;
   const settings: CheckPlaywrightConfigOutput["settings"] = {};
   for (const key of keys) {
     settings[key] = textScan ? extractSetting(content, key) : analysis.settings[key]?.value;
@@ -145,6 +148,15 @@ export function checkPlaywrightConfig(input: CheckPlaywrightConfigInput): CheckP
     warnings.push(
       "No `fullyParallel` setting found. Running fully parallel speeds up the suite, but only enable it once tests are verified isolated."
     );
+  }
+  const baseUrlValue = settings.baseURL?.trim();
+  const baseUrlLiteral = textScan || analysis.settings.baseURL?.kind === "literal";
+  if (baseUrlLiteral && baseUrlValue && /^['"`]https?:\/\//i.test(baseUrlValue)) {
+    warnings.push("`baseURL` is hardcoded — read it from the environment instead (e.g. `baseURL: process.env.BASE_URL`) so the same tests can target other environments.");
+  }
+  const idSelector = readQaEnv(root).idSelector;
+  if (idSelector && isMissing("testIdAttribute")) {
+    warnings.push(`ID_SELECTOR=${idSelector} is set in .env but \`use.testIdAttribute\` is not configured, so getByTestId() reads data-testid instead of data-${idSelector}. Add \`testIdAttribute: 'data-${idSelector}'\`.`);
   }
   if (!textScan && analysis.reporters.determinable && !analysis.reporters.html) {
     warnings.push(

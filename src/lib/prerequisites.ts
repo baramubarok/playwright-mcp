@@ -8,6 +8,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { resolveProjectPath, validatePathWithinRoot } from "./pathSecurity.js";
+import { readQaEnv } from "./qaEnv.js";
 
 export type BrowserInstallStatus = "installed" | "outdated" | "missing" | "unknown";
 export type PackageResolution = "project" | "workspace";
@@ -56,11 +57,30 @@ export interface AllurePrerequisites {
   status: "ready" | "not_configured" | "setup_required" | "results_missing";
 }
 
+export interface QaFolderStatus {
+  found: boolean;
+  path: string;
+  fileCount: number;
+}
+
+/** QA-first project layout: .env keys plus the docs/test-case and assets folders. Key presence only, never values. */
+export interface QaProjectPrerequisites {
+  envFileFound: boolean;
+  missingRequiredEnv: string[];
+  missingOptionalEnv: string[];
+  /** Attribute getByTestId() resolves to, derived from ID_SELECTOR. */
+  testIdAttribute: string;
+  testCaseDir: QaFolderStatus;
+  assetsDir: QaFolderStatus;
+  ready: boolean;
+}
+
 export interface TestPrerequisites {
   projectRoot: string;
   workspaceRoot?: string;
   packageJsonFound: boolean;
   playwright: PlaywrightPrerequisites;
+  qa: QaProjectPrerequisites;
   allure: AllurePrerequisites;
   nextSteps: string[];
   warnings: string[];
@@ -272,6 +292,40 @@ function findPathCommand(command: string): string | undefined {
   return undefined;
 }
 
+const TEST_CASE_EXTENSIONS = new Set([".feature", ".csv", ".xlsx"]);
+
+function inspectQaFolder(projectRoot: string, relPath: string, countFile: (name: string) => boolean): QaFolderStatus {
+  const folder = path.join(projectRoot, relPath);
+  let fileCount = 0;
+  let found = false;
+  try {
+    // Symlinks that leave the project are treated as absent rather than followed.
+    resolveProjectPath(relPath, projectRoot);
+    if (statSync(folder).isDirectory()) {
+      found = true;
+      fileCount = readdirSync(folder, { withFileTypes: true }).filter((entry) => entry.isFile() && countFile(entry.name)).length;
+    }
+  } catch {
+    // Missing or unsafe folder is reported as found=false.
+  }
+  return { found, path: relPath, fileCount };
+}
+
+function inspectQaProject(projectRoot: string): QaProjectPrerequisites {
+  const env = readQaEnv(projectRoot);
+  const testCaseDir = inspectQaFolder(projectRoot, "docs/test-case", (name) => TEST_CASE_EXTENSIONS.has(path.extname(name).toLowerCase()) && !/^example\./i.test(name));
+  const assetsDir = inspectQaFolder(projectRoot, "assets", (name) => name.toLowerCase() !== "readme.md");
+  return {
+    envFileFound: env.envFileFound,
+    missingRequiredEnv: env.missingRequired,
+    missingOptionalEnv: env.missingOptional,
+    testIdAttribute: env.testIdAttribute,
+    testCaseDir,
+    assetsDir,
+    ready: env.envFileFound && env.missingRequired.length === 0 && testCaseDir.found,
+  };
+}
+
 export function checkTestPrerequisites(projectRoot: string): TestPrerequisites {
   const packageJsonPath = resolveProjectPath("package.json", projectRoot, { mustExist: false, expectedType: "file" });
   const packageJson = existsSync(packageJsonPath) ? readJsonFile(packageJsonPath) : undefined;
@@ -340,6 +394,21 @@ export function checkTestPrerequisites(projectRoot: string): TestPrerequisites {
     warnings.push(`Playwright is resolved from the workspace root ${workspaceRoot}, not from the project itself.`);
   }
   if (!config.path) warnings.push("No playwright.config.* was found. Create one if the project needs custom test configuration.");
+
+  const qa = inspectQaProject(projectRoot);
+  if (!qa.envFileFound) {
+    nextSteps.push("Create .env from .env.example (or run init_qa_project) with BASE_URL, API_URL and ID_SELECTOR.");
+  } else if (qa.missingRequiredEnv.length > 0) {
+    nextSteps.push(`Set ${qa.missingRequiredEnv.join(", ")} in .env.`);
+  }
+  if (qa.envFileFound && qa.missingOptionalEnv.includes("API_URL")) {
+    warnings.push("API_URL is empty in .env; @integration tests need it to reach the backend API.");
+  }
+  if (!qa.testCaseDir.found) {
+    nextSteps.push("Create docs/test-case/ and put the QA test case files (.feature or .csv) there.");
+  } else if (qa.testCaseDir.fileCount === 0) {
+    warnings.push("docs/test-case/ has no test case files yet (.feature, .csv, .xlsx).");
+  }
   if (allureStatus === "setup_required") {
     if (!allureAdapter) nextSteps.push("Install the optional Allure adapter: npm install -D allure-playwright");
     if (!allureCliPath) nextSteps.push("Install the optional Allure CLI: npm install -D allure-commandline");
@@ -369,6 +438,7 @@ export function checkTestPrerequisites(projectRoot: string): TestPrerequisites {
       ready: playwrightReady,
       status: playwrightReady ? "ready" : "setup_required",
     },
+    qa,
     allure: {
       adapterInstalled: Boolean(allureAdapter),
       adapterVersion: allureAdapter?.version,
