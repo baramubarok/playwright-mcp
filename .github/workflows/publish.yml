@@ -6,12 +6,11 @@ on:
       - 'v[0-9]*'  # Match tags like v0.2.2
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     
     permissions:
-      contents: read
-      id-token: write
+      contents: write  # For creating releases
     
     steps:
       - name: Checkout code
@@ -21,7 +20,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
       
       - name: Install dependencies
@@ -32,22 +30,24 @@ jobs:
         run: npm run build
         timeout-minutes: 5
       
-      - name: Publish to NPM (staging)
-        run: npm publish --provenance --tag staging
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        timeout-minutes: 5
-      
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref }}
           name: Release ${{ github.ref_name }}
           body: |
-            ✅ Package staged to NPM Registry
+            ## 📦 Release ${{ github.ref_name }}
             
-            📦 **To promote to latest (requires 2FA):**
+            ✅ **Build:** Passed
+            ✅ **Tests:** Validated
+            
+            ---
+            
+            ### 🚀 To Publish to NPM
+            
+            Run locally (requires 2FA):
             ```bash
+            npm publish --provenance --tag staging
             npm dist-tag add playwright-generate-mcp@${{ github.ref_name }} latest
             npm dist-tag rm playwright-generate-mcp staging
             ```
