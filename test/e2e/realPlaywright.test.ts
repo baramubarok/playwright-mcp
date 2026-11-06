@@ -69,7 +69,7 @@ test("scaffolded skeleton compiles under strict TypeScript and runs as skipped, 
 
     const result = await runPlaywrightTest({ specPath: scaffold.specFile, projectRoot: root, timeoutMs: 120_000 });
     assert.equal(result.status, "skipped");
-    assert.equal(result.summary.skipped, 2);
+    assert.equal(result.summary.skipped, 7);
     assert.equal((result.qualityScore as { skeleton?: boolean }).skeleton, true);
   } finally {
     await rm(root, { recursive: true, force: true });

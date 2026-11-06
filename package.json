@@ -1,7 +1,7 @@
 {
   "name": "playwright-generate-mcp",
-  "version": "0.2.2",
-  "description": "MCP server that empowers LLM agents to generate, run, score, and heal enterprise-grade Playwright E2E tests using Domain-Driven POM architecture.",
+  "version": "0.3.0",
+  "description": "MCP server for QA teams: generate Playwright E2E tests from test cases and the live website, then run, score and heal them using a Domain-Driven POM architecture.",
   "type": "module",
   "main": "dist/index.js",
   "files": [

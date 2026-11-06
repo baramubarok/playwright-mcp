@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.0 — QA-first approach
+
+The MCP now targets QA teams: tests are generated from QA test cases and from the live website, in a separate automation repository. **Breaking:** the `playwright_write_test` prompt no longer tells the AI to read frontend source code, and `scaffold_test_domain` output changed (new shared support files, rich reference examples, 7 example tests instead of 2, `Payload`/`Record` types in `*.api.ts`, `setupState`/`cleanupState` replaced by `create`/`getById`/`list`/`update`/`remove`/`cleanup`).
+
+### Added
+
+- `init_qa_project`: scaffolds a standalone automation repo (`package.json`, `tsconfig.json`, `playwright.config.ts`, `.env` + `.env.example` with `BASE_URL`, `API_URL`, `ID_SELECTOR`, `TEST_USER`, `TEST_PASSWORD`, `.gitignore`, `docs/test-case/`, `assets/`, support helpers). Never overwrites `.env`.
+- `read_test_cases`: reads Gherkin, CSV and (optionally, via the project's `exceljs`) Excel test cases from `docs/test-case/` into structured cases.
+- `inspect_page`: scrapes the live site with the project's own Playwright (origin allowlist, `steps` for other UI states, `useAuth`, credential placeholders redacted from output) and returns the best locator per element: `data-testid` > `data-qa` > `data-{ID_SELECTOR}` > role+name > label > placeholder > text, with ambiguity flags.
+- `scaffold_auth_setup`: global auth handler (login once through the form or the API, `storageState` in `.auth/user.json`, `setup` project wiring, `.auth/` git-ignored). `scaffold_test_domain` creates it automatically for auth-like features and starts their spec logged out (`withAuthSetup: false` opts out).
+- `scaffold_test_domain`: `testTypes` and `apiBasePath` inputs, `helperCatalog` output, shared `support/selectors.ts` (`byTestId`, `byQa`, `byEnvId`) and `support/assets.ts` (`assetPath`).
+- Reference examples in every scaffolded file, and smoke / ui / regression / integration example tests; the API fixture creates its own `API_URL` based context and deletes records created through `create()` after each test.
+- `score_test_quality` anti-patterns: `inlineApiCall`, `inlineRoute`, `integrationWithoutApiHelper`, `unusedDomainHelpers` (also in the HTML quality report).
+- Prompts `playwright_setup_qa_project` and `playwright_generate_from_testcase` (optional `ids` argument).
+- `check_test_prerequisites` reports the QA layout (`qa`: `.env` key names, `docs/test-case/`, `assets/`); `check_playwright_config` reports `baseURL` / `testIdAttribute` and warns on a hardcoded `baseURL` or an unwired `ID_SELECTOR`.
+- New error codes: `PLAYWRIGHT_NOT_INSTALLED`, `BROWSER_LAUNCH_FAILED`, `NAVIGATION_FAILED`, `INSPECT_TIMEOUT`, `INSPECT_FAILED`.
+- Opt-in e2e tests: type-check of all scaffold output, `.xlsx` reading, `inspect_page` against a local page, and the generated reference tests running in Chromium.
+
+### Changed
+
+- Locator policy: stable data attributes first (`data-testid` > `data-qa` > `data-{ID_SELECTOR}`), semantic locators as the fallback. The scorer counts single `data-*` selectors and the selector helpers as stable locators.
+- `playwright_write_test` is built around test cases and live-site inspection (no frontend source reading); `playwright_run_and_heal` re-inspects the live page before changing a locator.
+- `scaffold_test_domain` templates moved to `src/templates/`.
+
 ## Unreleased (v0.2 fixing)
 
 ### Removed
