@@ -39,7 +39,6 @@ export const TSCONFIG_TEMPLATE = `{
   "compilerOptions": {
     "target": "ES2022",
     "module": "commonjs",
-    "moduleResolution": "node",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

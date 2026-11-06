@@ -4,13 +4,31 @@ import { z } from "zod";
 import { findProjectRoot } from "../lib/config.js";
 import { resolveProjectPath } from "../lib/pathSecurity.js";
 import { SKELETON_MARKER } from "../lib/scoreContent.js";
-import { SELECTORS_HELPER_SOURCE } from "../templates/qaProject.js";
+import { urlPathSchema } from "../lib/urlPath.js";
+import { ASSET_HELPER_SOURCE, SELECTORS_HELPER_SOURCE } from "../templates/qaProject.js";
+import { DIAGNOSTICS_FIXTURE_SOURCE } from "../templates/diagnosticsFixture.js";
+import {
+  ALL_TEST_TYPES,
+  apiSource,
+  buildHelperCatalog,
+  factorySource,
+  fixtureSource,
+  mockSource,
+  pageSource,
+  specSource,
+  type DomainContext,
+  type HelperCatalogEntry,
+  type Names,
+  type TestType,
+} from "../templates/domain.js";
 import { scaffoldAuthSetup, type ScaffoldAuthSetupOutput } from "./scaffoldAuthSetup.js";
 import {
   assertSafeIdentifier,
   assertUniqueNormalizedIdentifiers,
   safeIdentifierSchema,
 } from "../lib/safeIdentifier.js";
+
+export { DIAGNOSTICS_FIXTURE_SOURCE };
 
 export const scaffoldTestDomainInputShape = {
   featureName: safeIdentifierSchema
@@ -29,6 +47,13 @@ export const scaffoldTestDomainInputShape = {
     .boolean()
     .optional()
     .describe("Whether to overwrite existing files if they already exist. Default: false."),
+  testTypes: z
+    .array(z.enum(["smoke", "ui", "regression", "integration"]))
+    .optional()
+    .describe("Which reference example tests to put in the spec. Default: all four (smoke, ui, regression, integration)."),
+  apiBasePath: urlPathSchema
+    .optional()
+    .describe("API path of the feature used by the mock and api helpers, e.g. \"/api/v1/orders\". Default: /api/v1/{featureName}."),
   withAuthSetup: z
     .boolean()
     .optional()
@@ -55,6 +80,8 @@ export interface ScaffoldTestDomainOutput {
   authFeature: boolean;
   /** Result of the automatic global auth handler scaffold (auth-like features only). */
   authSetup?: ScaffoldAuthSetupOutput;
+  /** Everything specs can call (fixtures, page locators/methods, mock/api methods, factories, support helpers). */
+  helperCatalog: HelperCatalogEntry[];
   nextSteps: string[];
 }
 
@@ -78,6 +105,10 @@ function toKebabCase(str: string): string {
     .toLowerCase();
 }
 
+function namesOf(value: string): Names {
+  return { kebab: toKebabCase(value), pascal: toPascalCase(value), camel: toCamelCase(value) };
+}
+
 export function scaffoldTestDomain(input: ScaffoldTestDomainInput): ScaffoldTestDomainOutput {
   assertSafeIdentifier(input.featureName, "featureName");
   const requestedStepNames = input.steps && input.steps.length > 0 ? input.steps : undefined;
@@ -86,40 +117,54 @@ export function scaffoldTestDomain(input: ScaffoldTestDomainInput): ScaffoldTest
   }
 
   const root = findProjectRoot(undefined, input.projectRoot);
-  const featureKebab = toKebabCase(input.featureName);
-  const featurePascal = toPascalCase(input.featureName);
-  const featureCamel = toCamelCase(input.featureName);
+  const feature = namesOf(input.featureName);
 
-  const stepNames = requestedStepNames ?? [featureKebab];
+  const stepNames = requestedStepNames ?? [feature.kebab];
   assertUniqueNormalizedIdentifiers(stepNames, "steps", toKebabCase);
 
+  const authFeature = AUTH_FEATURE_PATTERN.test(input.featureName);
+  const requestedTypes = new Set<TestType>(input.testTypes && input.testTypes.length > 0 ? input.testTypes : ALL_TEST_TYPES);
+  const ctx: DomainContext = {
+    feature,
+    steps: stepNames.map(namesOf),
+    apiBasePath: input.apiBasePath ?? `/api/v1/${feature.kebab}`,
+    testTypes: ALL_TEST_TYPES.filter((type) => requestedTypes.has(type)),
+    authFeature,
+  };
+
   const baseE2eDir = path.join(root, "tests", "e2e");
-  const domainDir = path.join(baseE2eDir, "domain", featureKebab);
+  const domainDir = path.join(baseE2eDir, "domain", feature.kebab);
   const pagesDir = path.join(domainDir, "pages");
   const factoryDir = path.join(baseE2eDir, "factory");
   const specsDir = path.join(baseE2eDir, "specs");
   const supportDir = path.join(baseE2eDir, "support");
-  const diagnosticsFixturePath = path.join(supportDir, "diagnostics.fixture.ts");
-  const selectorsHelperPath = path.join(supportDir, "selectors.ts");
+
+  const sharedFiles = [
+    { filePath: path.join(supportDir, "diagnostics.fixture.ts"), content: DIAGNOSTICS_FIXTURE_SOURCE },
+    { filePath: path.join(supportDir, "selectors.ts"), content: SELECTORS_HELPER_SOURCE },
+    { filePath: path.join(supportDir, "assets.ts"), content: ASSET_HELPER_SOURCE },
+  ];
+  const diagnosticsFixturePath = sharedFiles[0].filePath;
+  const factoryFilePath = path.join(factoryDir, `${feature.kebab}.factory.ts`);
+  const specFilePath = path.join(specsDir, `${feature.kebab}.spec.ts`);
+
+  const domainFiles = [
+    ...ctx.steps.map((step) => ({ filePath: path.join(pagesDir, `${step.kebab}.page.ts`), content: pageSource(ctx, step) })),
+    { filePath: path.join(domainDir, `${feature.kebab}.mock.ts`), content: mockSource(ctx) },
+    { filePath: path.join(domainDir, `${feature.kebab}.api.ts`), content: apiSource(ctx) },
+    { filePath: path.join(domainDir, `${feature.kebab}.fixture.ts`), content: fixtureSource(ctx) },
+    { filePath: factoryFilePath, content: factorySource(ctx) },
+    { filePath: specFilePath, content: specSource(ctx) },
+  ];
 
   const destinationDirs = [pagesDir, factoryDir, specsDir, supportDir];
-  const destinationFiles = [
-    diagnosticsFixturePath,
-    selectorsHelperPath,
-    ...stepNames.map((step) => path.join(pagesDir, `${toKebabCase(step)}.page.ts`)),
-    path.join(domainDir, `${featureKebab}.mock.ts`),
-    path.join(domainDir, `${featureKebab}.api.ts`),
-    path.join(domainDir, `${featureKebab}.fixture.ts`),
-    path.join(factoryDir, `${featureKebab}.factory.ts`),
-    path.join(specsDir, `${featureKebab}.spec.ts`),
-  ];
 
   // Preflight every destination before creating any directory or file.
   for (const directory of destinationDirs) {
     resolveProjectPath(directory, root, { forWrite: true });
   }
-  for (const file of destinationFiles) {
-    resolveProjectPath(file, root, { forWrite: true });
+  for (const { filePath } of [...sharedFiles, ...domainFiles]) {
+    resolveProjectPath(filePath, root, { forWrite: true });
   }
 
   for (const directory of destinationDirs) mkdirSync(directory, { recursive: true });
@@ -142,239 +187,13 @@ export function scaffoldTestDomain(input: ScaffoldTestDomainInput): ScaffoldTest
     createdFiles.push(relPath);
   }
 
-  // 0. Shared diagnostics fixture (support/diagnostics.fixture.ts)
-  safeWriteFile(diagnosticsFixturePath, DIAGNOSTICS_FIXTURE_SOURCE, { shared: true });
-  safeWriteFile(selectorsHelperPath, SELECTORS_HELPER_SOURCE, { shared: true });
+  for (const file of sharedFiles) safeWriteFile(file.filePath, file.content, { shared: true });
+  for (const file of domainFiles) safeWriteFile(file.filePath, file.content);
 
-  // 1. Generate Page Object(s)
-  const pageObjectImports: string[] = [];
-  const pageFixtureProps: string[] = [];
-  const pageFixtureDefs: string[] = [];
-
-  for (const step of stepNames) {
-    const stepKebab = toKebabCase(step);
-    const stepPascal = toPascalCase(step);
-    const stepCamel = toCamelCase(step);
-    const className = `${stepPascal}Page`;
-    const propName = `${stepCamel}Page`;
-    const pageFileName = `${stepKebab}.page.ts`;
-    const pageFilePath = path.join(pagesDir, pageFileName);
-
-    const pageContent = `
-import { expect, type Locator, type Page } from '@playwright/test';
-
-export class ${className} {
-  readonly page: Page;
-  readonly heading: Locator;
-  // TODO: Add readonly locators: data-testid/data-qa/data-{ID_SELECTOR} first, else getByRole > getByLabel > getByText, e.g.
-  // readonly submitButton: Locator;
-
-  constructor(page: Page) {
-    this.page = page;
-    // TODO: Replace with the page's real accessible heading.
-    this.heading = page.getByRole('heading', { level: 1 });
-    // this.submitButton = page.getByRole('button', { name: /submit|continue/i });
-  }
-
-  async goto() {
-    // TODO: Confirm the route; relative URLs require use.baseURL in playwright.config.
-    await this.page.goto('/${featureKebab}');
-  }
-
-  /** Web-first assertion that the page is ready for interaction. */
-  async expectLoaded() {
-    await expect(this.heading).toBeVisible();
-  }
-
-  // TODO: Add semantic action methods, e.g.
-  // async submit() {
-  //   await this.submitButton.click();
-  // }
-}
-`;
-    safeWriteFile(pageFilePath, pageContent);
-
-    pageObjectImports.push(`import { ${className} } from './pages/${stepKebab}.page';`);
-    pageFixtureProps.push(`  ${propName}: ${className};`);
-    pageFixtureDefs.push(`  ${propName}: async ({ page }, use) => {\n    await use(new ${className}(page));\n  },`);
-  }
-
-  // 2. Generate Mock API Handler ({feature}.mock.ts)
-  const mockClassName = `${featurePascal}Mock`;
-  const mockPropName = `${featureCamel}Mock`;
-  const mockFilePath = path.join(domainDir, `${featureKebab}.mock.ts`);
-  const mockContent = `
-import type { Page } from '@playwright/test';
-
-/** Matches /api/v1/${featureKebab}, /api/v1/${featureKebab}/... and query strings. TODO: align with the real API. */
-export const ${featureCamel}ApiPattern = /\\/api\\/v1\\/${featureKebab}(?:[/?#]|$)/;
-
-export class ${mockClassName} {
-  constructor(private readonly page: Page) {}
-
-  /** Mock a successful response for the ${featurePascal} flow. */
-  async mockSuccess(customData?: Record<string, unknown>) {
-    await this.page.route(${featureCamel}ApiPattern, async (route) => {
-      await route.fulfill({ status: 200, json: { success: true, message: 'Success', ...customData } });
-    });
-  }
-
-  /** Mock an HTTP error (default 500) for error-flow UI tests. */
-  async mockServerError(status = 500, message = 'Internal Server Error') {
-    await this.page.route(${featureCamel}ApiPattern, async (route) => {
-      await route.fulfill({ status, json: { success: false, message } });
-    });
-  }
-}
-`;
-  safeWriteFile(mockFilePath, mockContent);
-
-  // 3. Generate Real API Helper ({feature}.api.ts)
-  const apiClassName = `${featurePascal}Api`;
-  const apiPropName = `${featureCamel}Api`;
-  const apiFilePath = path.join(domainDir, `${featureKebab}.api.ts`);
-  const apiContent = `
-import { expect, type APIRequestContext } from '@playwright/test';
-
-/** Real backend calls for @integration tests. Relative URLs require use.baseURL in playwright.config. */
-export class ${apiClassName} {
-  constructor(private readonly request: APIRequestContext) {}
-
-  /** TODO: Point at the real setup endpoint. */
-  async setupState(payload: Record<string, unknown>) {
-    const response = await this.request.post('/api/v1/${featureKebab}/setup', { data: payload });
-    await expect(response).toBeOK();
-    return response.json();
-  }
-
-  /** TODO: Point at the real cleanup endpoint. */
-  async cleanupState(id: string) {
-    const response = await this.request.delete(\`/api/v1/${featureKebab}/\${encodeURIComponent(id)}\`);
-    await expect(response).toBeOK();
-  }
-}
-`;
-  safeWriteFile(apiFilePath, apiContent);
-
-  // 4. Generate Custom Fixture ({feature}.fixture.ts)
-  const fixtureFilePath = path.join(domainDir, `${featureKebab}.fixture.ts`);
-  const fixtureContent = `
-import { test as base, expect } from '../../support/diagnostics.fixture';
-${pageObjectImports.join("\n")}
-import { ${mockClassName} } from './${featureKebab}.mock';
-import { ${apiClassName} } from './${featureKebab}.api';
-
-type ${featurePascal}Fixtures = {
-${pageFixtureProps.join("\n")}
-  ${mockPropName}: ${mockClassName};
-  ${apiPropName}: ${apiClassName};
-};
-
-export const test = base.extend<${featurePascal}Fixtures>({
-${pageFixtureDefs.join("\n")}
-  ${mockPropName}: async ({ page }, use) => {
-    await use(new ${mockClassName}(page));
-  },
-  ${apiPropName}: async ({ request }, use) => {
-    await use(new ${apiClassName}(request));
-  },
-});
-
-export { expect };
-`;
-  safeWriteFile(fixtureFilePath, fixtureContent);
-
-  // 5. Generate Data Factory (factory/{feature}.factory.ts)
-  const factoryFilePath = path.join(factoryDir, `${featureKebab}.factory.ts`);
-  const factoryContent = `
-export interface ${featurePascal}Data {
-  id: string;
-  name: string;
-  email: string;
-  createdAt: number;
-}
-
-/**
- * Generate unique, dynamic data for ${featurePascal} tests. The random suffix keeps values unique
- * across parallel workers and re-runs, preventing unique-constraint collisions.
- */
-export function create${featurePascal}Data(overrides?: Partial<${featurePascal}Data>): ${featurePascal}Data {
-  const createdAt = Date.now();
-  const unique = \`\${createdAt}-\${Math.random().toString(36).slice(2, 8)}\`;
-  return {
-    id: \`${featureKebab}_\${unique}\`,
-    name: \`Test User \${unique}\`,
-    email: \`${featureKebab}.\${unique}@example.com\`,
-    createdAt,
-    ...overrides,
-  };
-}
-`;
-  safeWriteFile(factoryFilePath, factoryContent);
-
-  // 6. Generate Spec File (specs/{feature}.spec.ts)
-  const firstPageProp = pageFixtureProps.length > 0 ? toCamelCase(stepNames[0]) + "Page" : "page";
-  const authFeature = AUTH_FEATURE_PATTERN.test(input.featureName);
-  // Login-style tests must start logged out; every other spec reuses the global session from auth.setup.ts.
-  const loggedOutBlock = authFeature
-    ? `
-  // Start logged out: ignore the global session saved by auth.setup.ts.
-  test.use({ storageState: { cookies: [], origins: [] } });
-`
-    : "";
-  const specFilePath = path.join(specsDir, `${featureKebab}.spec.ts`);
-  const specContent = `
-// ${SKELETON_MARKER}: generated by scaffold_test_domain. Tests are test.fixme (skipped) until the TODOs
-// are implemented with real actions and outcome assertions; then change test.fixme to test and
-// remove this marker. score_test_quality reports the file as a skeleton while the marker is present.
-import { test, expect } from '../domain/${featureKebab}/${featureKebab}.fixture';
-import { create${featurePascal}Data } from '../factory/${featureKebab}.factory';
-
-test.describe('${featurePascal} Flow', () => {${loggedOutBlock}
-  test.fixme('should complete ${featureKebab} happy path @smoke @ui', async ({ ${firstPageProp}, ${mockPropName} }) => {
-    const testData = create${featurePascal}Data();
-
-    await test.step('Mock API responses', async () => {
-      await ${mockPropName}.mockSuccess({ id: testData.id });
-    });
-
-    await test.step('Navigate to page', async () => {
-      await ${firstPageProp}.goto();
-      await ${firstPageProp}.expectLoaded();
-    });
-
-    await test.step('Interact with form and assert outcome', async () => {
-      // TODO: Call page object actions and assert the user-visible outcome, e.g.
-      // await ${firstPageProp}.submit();
-      // await expect(${firstPageProp}.page.getByRole('status')).toHaveText(/success/i);
-    });
-  });
-
-  test.fixme('should show an error when the API fails @ui', async ({ ${firstPageProp}, ${mockPropName} }) => {
-    await test.step('Mock 500 server error', async () => {
-      await ${mockPropName}.mockServerError(500);
-    });
-
-    await test.step('Navigate and trigger the request', async () => {
-      await ${firstPageProp}.goto();
-      await ${firstPageProp}.expectLoaded();
-      // TODO: Perform the interaction that calls the API.
-    });
-
-    await test.step('Assert the error is shown', async () => {
-      // TODO: Assert the user-visible error, e.g.
-      // await expect(${firstPageProp}.page.getByRole('alert')).toContainText(/error/i);
-    });
-  });
-});
-`;
-  safeWriteFile(specFilePath, specContent);
-
-  const authSetup =
-    authFeature && input.withAuthSetup !== false ? scaffoldAuthSetup({ projectRoot: root, mode: "ui", overwrite: false }) : undefined;
+  const authSetup = authFeature && input.withAuthSetup !== false ? scaffoldAuthSetup({ projectRoot: root, mode: "ui", overwrite: false }) : undefined;
 
   return {
-    feature: featureKebab,
+    feature: feature.kebab,
     createdFiles,
     skippedFiles,
     domainDir: path.relative(root, domainDir),
@@ -384,71 +203,14 @@ test.describe('${featurePascal} Flow', () => {${loggedOutBlock}
     skeleton: true,
     authFeature,
     ...(authSetup ? { authSetup } : {}),
+    helperCatalog: buildHelperCatalog(ctx, (suffix) => path.join(path.relative(root, domainDir), suffix).split(path.sep).join("/")),
     nextSteps: [
-      "Fill pages/*.page.ts with semantic locators and action methods (replace the TODOs).",
-      "Align the mock route pattern and API endpoints with the real application.",
-      `Implement the TODO steps in ${path.relative(root, specFilePath)}, then change test.fixme to test and remove the ${SKELETON_MARKER} marker.`,
-      "Run score_test_quality (skeleton must be false) and then run_playwright_test.",
+      "Scrape the real page first (inspect_page) and replace the reference locators in pages/*.page.ts (data-testid > data-qa > data-{ID_SELECTOR} > semantic).",
+      `Align ${ctx.apiBasePath} in the mock/api files and the payload type with the real API; reuse helperCatalog instead of re-reading the files.`,
+      `Adapt the reference tests in ${path.relative(root, specFilePath)} to the test case, using only the page/mock/api fixtures (add missing methods to those files, never inline request.* or page.route() in the spec).`,
+      `Then change test.fixme to test and remove the ${SKELETON_MARKER} marker.`,
+      "Run score_test_quality (skeleton must be false, no inlineApiCall/inlineRoute) and then run_playwright_test.",
       ...(authSetup ? ["A global auth handler was scaffolded under tests/e2e/auth; follow authSetup.nextSteps (credentials in .env, login form locators)."] : []),
     ],
   };
 }
-
-/**
- * Auto fixture shared by all scaffolded domains. It records real browser events and attaches them
- * as `mcp-diagnostics` when a test does not end with its expected status, so run_playwright_test and
- * get_failure_details can report console errors, page errors and failed requests per test.
- */
-export const DIAGNOSTICS_FIXTURE_SOURCE = `
-import { test as base, expect } from '@playwright/test';
-
-const MAX_EVENTS = 20;
-const MAX_TEXT = 500;
-
-type ConsoleEntry = { type: string; text: string; location?: string };
-type PageErrorEntry = { message: string; stack?: string };
-type RequestEntry = { url: string; method: string; status?: number; failure?: string; resourceType: string };
-
-export const test = base.extend<{ mcpDiagnostics: void }>({
-  mcpDiagnostics: [
-    async ({ page }, use, testInfo) => {
-      const consoleMessages: ConsoleEntry[] = [];
-      const pageErrors: PageErrorEntry[] = [];
-      const failedRequests: RequestEntry[] = [];
-      const push = <T>(list: T[], value: T) => {
-        if (list.length < MAX_EVENTS) list.push(value);
-      };
-
-      page.on('console', (message) => {
-        const type = message.type();
-        if (type !== 'error' && type !== 'warning') return;
-        const { url, lineNumber } = message.location();
-        push(consoleMessages, { type, text: message.text().slice(0, MAX_TEXT), location: url ? \`\${url}:\${lineNumber}\` : undefined });
-      });
-      page.on('pageerror', (error) => {
-        push(pageErrors, { message: error.message.slice(0, MAX_TEXT), stack: error.stack?.split('\\n').slice(0, 4).join('\\n') });
-      });
-      page.on('requestfailed', (request) => {
-        push(failedRequests, { url: request.url(), method: request.method(), failure: request.failure()?.errorText, resourceType: request.resourceType() });
-      });
-      page.on('response', (response) => {
-        if (response.status() < 400) return;
-        const request = response.request();
-        push(failedRequests, { url: response.url(), method: request.method(), status: response.status(), resourceType: request.resourceType() });
-      });
-
-      await use();
-
-      if (testInfo.status !== testInfo.expectedStatus) {
-        await testInfo.attach('mcp-diagnostics', {
-          body: JSON.stringify({ consoleMessages, pageErrors, failedRequests }),
-          contentType: 'application/json',
-        });
-      }
-    },
-    { auto: true },
-  ],
-});
-
-export { expect };
-`;

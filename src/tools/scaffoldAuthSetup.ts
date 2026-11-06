@@ -3,6 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { findProjectRoot } from "../lib/config.js";
 import { resolveProjectPath } from "../lib/pathSecurity.js";
+import { urlPathSchema } from "../lib/urlPath.js";
 import {
   AUTH_CONFIG_SOURCE,
   AUTH_PROJECTS_BLOCK,
@@ -14,13 +15,6 @@ import {
   type AuthTemplateOptions,
 } from "../templates/authSetup.js";
 import { DEFAULT_PROJECTS_LINE } from "../templates/qaProject.js";
-
-const URL_PATH_RULE = "must start with '/' and contain only letters, numbers, '/', '-', '_' or '.'";
-const urlPathSchema = z
-  .string()
-  .max(200)
-  .regex(/^\/[A-Za-z0-9/_.-]*$/, URL_PATH_RULE)
-  .refine((value) => !value.split("/").includes(".."), "must not contain '..' segments");
 
 const PLAYWRIGHT_CONFIG_FILES = ["playwright.config.ts", "playwright.config.js", "playwright.config.mjs", "playwright.config.cjs", "playwright.config.mts", "playwright.config.cts"];
 

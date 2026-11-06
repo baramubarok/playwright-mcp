@@ -187,6 +187,14 @@ export const scaffoldTestDomainOutputShape = {
   diagnosticsFixtureFile: z.string(),
   skeleton: z.literal(true),
   authFeature: z.boolean(),
+  helperCatalog: z.array(
+    z.object({
+      kind: z.enum(["page", "mock", "api", "factory", "support"]),
+      fixture: z.string().optional(),
+      file: z.string(),
+      members: z.array(z.string()),
+    }),
+  ),
   authSetup: z
     .object({
       mode: z.enum(["ui", "api"]),

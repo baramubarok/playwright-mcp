@@ -52,7 +52,7 @@ test("rejects duplicate steps that would generate the same page file", async () 
 test("valid scaffolding still writes the complete expected structure", async () => {
   await withRoot(async (root) => {
     const result = scaffoldTestDomain({ featureName: "safe-checkout", steps: ["payment"], projectRoot: root });
-    assert.equal(result.createdFiles.length, 8);
+    assert.equal(result.createdFiles.length, 9);
     assert.match(await readFile(path.join(root, result.specFile), "utf8"), /SafeCheckout Flow/);
   });
 });

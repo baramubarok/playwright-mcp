@@ -17,7 +17,7 @@ import {
   TSCONFIG_TEMPLATE,
   type QaProjectTemplateOptions,
 } from "../templates/qaProject.js";
-import { DIAGNOSTICS_FIXTURE_SOURCE } from "./scaffoldTestDomain.js";
+import { DIAGNOSTICS_FIXTURE_SOURCE } from "../templates/diagnosticsFixture.js";
 
 const PROJECT_NAME_RULE = "must be lowercase letters, numbers, '-' or '_' (npm package name), at most 64 characters";
 const ID_SELECTOR_RULE = "must be lowercase letters, numbers or '-' and start with a letter (used as the data-{ID_SELECTOR} attribute)";

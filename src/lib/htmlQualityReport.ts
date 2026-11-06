@@ -93,6 +93,10 @@ export function generateQualityHtmlReport(options: HtmlReportOptions): string {
     { label: "Deep / Fragile CSS Chains", count: score.antiPatterns.deepLocatorChain },
     { label: "Un-scoped Index Locators", count: score.antiPatterns.indexBasedLocator },
     { label: "Manual Text Extraction", count: score.antiPatterns.manualTextExtraction },
+    { label: "Inline API Calls in Spec", count: score.antiPatterns.inlineApiCall ?? 0 },
+    { label: "Inline page.route in Spec", count: score.antiPatterns.inlineRoute ?? 0 },
+    { label: "@integration Without API Helper", count: score.antiPatterns.integrationWithoutApiHelper ?? 0 },
+    { label: "Unused Domain Helpers", count: score.antiPatterns.unusedDomainHelpers ?? 0 },
   ]
     .map((ap) => {
       const isWarn = ap.count > 0;

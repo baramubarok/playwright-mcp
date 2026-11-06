@@ -14,6 +14,7 @@ test("scaffolds the expected domain files in a temporary project", async () => {
     const expectedFiles = [
       "tests/e2e/support/diagnostics.fixture.ts",
       "tests/e2e/support/selectors.ts",
+      "tests/e2e/support/assets.ts",
       "tests/e2e/domain/checkout-flow/pages/payment.page.ts",
       "tests/e2e/domain/checkout-flow/checkout-flow.mock.ts",
       "tests/e2e/domain/checkout-flow/checkout-flow.api.ts",
@@ -39,13 +40,13 @@ test("scaffolds the expected domain files in a temporary project", async () => {
     // so commented-out examples never count as locators or assertions.
     const score = scoreSpecAndRelatedPOMFiles(path.join(root, "tests/e2e/specs/checkout-flow.spec.ts"), root);
     assert.equal(score.scaffold.skeleton, true);
-    assert.equal(score.scaffold.fixmeTests, 2);
+    assert.equal(score.scaffold.fixmeTests, 7);
     assert.ok(score.scaffold.todoCount > 0);
-    assert.equal(score.assertionDensity.testCount, 2);
-    // Only real assertions count: expectLoaded() in the page object and the two toBeOK() checks in
-    // the API helper. The commented-out examples in the spec are ignored.
-    assert.equal(score.assertionDensity.totalAssertions, 3);
-    assert.equal(score.fileBreakdown?.["tests/e2e/specs/checkout-flow.spec.ts"]?.assertionDensity.totalAssertions, 0);
+    assert.equal(score.assertionDensity.testCount, 7);
+    // The reference examples are real code: expectX() assertions in the page object (5), toBeOK() in the
+    // API helper (5) and the expect() calls in the regression/integration examples of the spec (3).
+    assert.equal(score.assertionDensity.totalAssertions, 13);
+    assert.equal(score.fileBreakdown?.["tests/e2e/specs/checkout-flow.spec.ts"]?.assertionDensity.totalAssertions, 3);
     assert.match(score.warnings[0], /\[tests\/e2e\/specs\/checkout-flow\.spec\.ts\] Unimplemented scaffold skeleton/);
 
     const fixture = await readFile(path.join(root, "tests/e2e/support/diagnostics.fixture.ts"), "utf8");
@@ -67,8 +68,8 @@ test("scaffolds the expected domain files in a temporary project", async () => {
 
     // overwrite regenerates the domain files but never clobbers the shared support fixture.
     const overwriteRun = scaffoldTestDomain({ featureName: "checkout-flow", steps: ["payment"], projectRoot: root, overwrite: true });
-    assert.deepEqual(overwriteRun.skippedFiles, ["tests/e2e/support/diagnostics.fixture.ts", "tests/e2e/support/selectors.ts"]);
-    assert.deepEqual(overwriteRun.createdFiles, expectedFiles.slice(2));
+    assert.deepEqual(overwriteRun.skippedFiles, ["tests/e2e/support/diagnostics.fixture.ts", "tests/e2e/support/selectors.ts", "tests/e2e/support/assets.ts"]);
+    assert.deepEqual(overwriteRun.createdFiles, expectedFiles.slice(3));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
