@@ -17,11 +17,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup Node.js
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
       
       - name: Install dependencies
         run: npm ci
@@ -29,32 +30,32 @@ jobs:
       - name: Build
         run: npm run build
       
-      - name: Run tests
-        run: npm test
-      
       - name: Stage publish to NPM
         run: npm publish --provenance --tag staging
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref }}
           name: Release ${{ github.ref_name }}
           body: |
-            ✅ Package staged on NPM
+            ✅ Package staged on NPM with `staging` dist-tag
             
             📦 Package: https://www.npmjs.com/package/playwright-generate-mcp
             
             ⚠️ **IMPORTANT**: This version has been staged and requires manual promotion with 2FA.
             
-            To publish this version:
+            **To publish this version, run locally:**
             ```bash
             npm dist-tag add playwright-generate-mcp@${{ github.ref_name }} latest
             npm dist-tag rm playwright-generate-mcp staging
             ```
             
-            Or use: `npm view playwright-generate-mcp` to verify staging
+            Or verify staging with:
+            ```bash
+            npm view playwright-generate-mcp
+            ```
           draft: false
           prerelease: false

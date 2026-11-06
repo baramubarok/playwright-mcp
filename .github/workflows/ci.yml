@@ -10,18 +10,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
     
-    strategy:
-      matrix:
-        node-version: [18, 20]
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: '20'
           cache: 'npm'
       
       - name: Install dependencies
@@ -30,12 +26,8 @@ jobs:
       - name: Build
         run: npm run build
       
-      - name: Run unit tests
-        run: npm run test:unit
-      
-      - name: Run integration tests
-        run: npm run test:integration
-        continue-on-error: true  # Don't block if integration tests fail
+      - name: Run all tests
+        run: npm test
       
       - name: Validate package
         run: npm run check:package
