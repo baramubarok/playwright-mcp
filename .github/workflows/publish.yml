@@ -32,19 +32,29 @@ jobs:
       - name: Run tests
         run: npm test
       
-      - name: Publish to NPM
-        run: npm publish --provenance
+      - name: Stage publish to NPM
+        run: npm publish --provenance --tag staging
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body: |
-            Published to NPM: https://www.npmjs.com/package/playwright-generate-mcp/v/${{ github.ref_name }}
+            ✅ Package staged on NPM
+            
+            📦 Package: https://www.npmjs.com/package/playwright-generate-mcp
+            
+            ⚠️ **IMPORTANT**: This version has been staged and requires manual promotion with 2FA.
+            
+            To publish this version:
+            ```bash
+            npm dist-tag add playwright-generate-mcp@${{ github.ref_name }} latest
+            npm dist-tag rm playwright-generate-mcp staging
+            ```
+            
+            Or use: `npm view playwright-generate-mcp` to verify staging
           draft: false
           prerelease: false
