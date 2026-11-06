@@ -1,6 +1,6 @@
 {
   "name": "playwright-generate-mcp",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "MCP server for QA teams: generate Playwright E2E tests from test cases and the live website, then run, score and heal them using a Domain-Driven POM architecture.",
   "type": "module",
   "main": "dist/index.js",
