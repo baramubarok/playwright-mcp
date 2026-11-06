@@ -33,6 +33,8 @@ Do NOT dump large markdown tables or raw JSON logs into chat. Instead, output a 
 3. SAFE HEALING RULES (DO NOT AUTO-PATCH BLINDLY)
 ===================================================================
 - Fix in Page Objects: ALWAYS edit selectors and actions in 'domain/{feature}/pages/*.page.ts', NOT in '*.spec.ts'.
+- Re-inspect the live page (QA has no frontend source): for a 'locator_not_found' failure call 'inspect_page' on the failing page (reproduce the state with 'steps'; 'useAuth: true' for pages behind login) and take the replacement from its locators (data-testid > data-qa > data-{ID_SELECTOR} > semantic). Never guess a locator.
+- Missing helpers: when the fix needs a new API call or mock, add a method to '{feature}.api.ts' / '{feature}.mock.ts'; never write request.* or page.route() in the spec.
 - Strict Healing Gate:
   * Only adjust a locator if the element's identity (role/name/testid) is preserved and only the DOM structure shifted.
   * If the element was intentionally removed or altered (behavioral change), DO NOT patch silently. Flag it as a potential application regression.

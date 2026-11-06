@@ -16,6 +16,8 @@ import { inspectPage, inspectPageInputShape } from "./tools/inspectPage.js";
 import { checkTestPrerequisitesTool, checkTestPrerequisitesInputShape } from "./tools/checkTestPrerequisites.js";
 import { WRITE_TEST_PROMPT_NAME, writeTestPromptText } from "./prompts/writeTestPrompt.js";
 import { RUN_AND_HEAL_PROMPT_NAME, runAndHealPromptText } from "./prompts/runAndHealPrompt.js";
+import { GENERATE_FROM_TESTCASE_PROMPT_NAME, generateFromTestCasePromptText } from "./prompts/generateFromTestCasePrompt.js";
+import { SETUP_QA_PROJECT_PROMPT_NAME, setupQaProjectPromptText } from "./prompts/setupQaProjectPrompt.js";
 import { setProjectRoot } from "./lib/config.js";
 import { toToolErrorPayload } from "./lib/toolErrors.js";
 import { terminateActiveRunners } from "./lib/runnerProcess.js";
@@ -276,10 +278,33 @@ registerJsonTool(
 );
 
 server.registerPrompt(
+  SETUP_QA_PROJECT_PROMPT_NAME,
+  {
+    title: "Playwright: Set up a QA automation project",
+    description: "Onboarding for QA: collect BASE_URL/API_URL/ID_SELECTOR, create a standalone automation repo with init_qa_project, then the global auth handler.",
+  },
+  async () => ({
+    messages: [{ role: "user" as const, content: { type: "text" as const, text: setupQaProjectPromptText } }],
+  })
+);
+
+server.registerPrompt(
+  GENERATE_FROM_TESTCASE_PROMPT_NAME,
+  {
+    title: "Playwright: Generate tests from QA test cases",
+    description: "QA-first workflow: read_test_cases, inspect_page on the live site (data-testid > data-qa > data-{ID_SELECTOR} > semantic), scaffold, implement one test per test case, score and run.",
+    argsSchema: { ids: z.string().max(500).optional().describe("Optional comma separated test case IDs to implement, e.g. \"TC-001, TC-002\".") },
+  },
+  async ({ ids }) => ({
+    messages: [{ role: "user" as const, content: { type: "text" as const, text: generateFromTestCasePromptText(ids) } }],
+  })
+);
+
+server.registerPrompt(
   WRITE_TEST_PROMPT_NAME,
   {
     title: "Playwright: Write new test",
-    description: "Workflow for scaffolding and writing enterprise-grade Domain-Driven POM tests using scaffold_test_domain, semantic locators, mock/api helpers, and dynamic factories.",
+    description: "Authoring rules and structure for enterprise-grade Domain-Driven POM tests built from QA test cases and the live site (no frontend source): scaffold_test_domain, stable locators, mock/api helpers, global auth.",
   },
   async () => ({
     messages: [
