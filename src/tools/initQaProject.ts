@@ -10,6 +10,7 @@ import {
   GITIGNORE_TEMPLATE,
   packageJsonTemplate,
   PLAYWRIGHT_CONFIG_TEMPLATE,
+  SELECTORS_HELPER_SOURCE,
   TEST_CASE_EXAMPLE_CSV,
   TEST_CASE_EXAMPLE_FEATURE,
   TEST_CASE_README,
@@ -121,6 +122,7 @@ export function initQaProject(input: InitQaProjectInput): InitQaProjectOutput {
     { relPath: "assets/README.md", content: ASSETS_README },
     { relPath: "tests/e2e/support/diagnostics.fixture.ts", content: DIAGNOSTICS_FIXTURE_SOURCE },
     { relPath: "tests/e2e/support/assets.ts", content: ASSET_HELPER_SOURCE },
+    { relPath: "tests/e2e/support/selectors.ts", content: SELECTORS_HELPER_SOURCE },
   ];
 
   // Preflight every destination (traversal and symlink checks) before writing anything.

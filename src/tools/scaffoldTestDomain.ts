@@ -4,6 +4,7 @@ import { z } from "zod";
 import { findProjectRoot } from "../lib/config.js";
 import { resolveProjectPath } from "../lib/pathSecurity.js";
 import { SKELETON_MARKER } from "../lib/scoreContent.js";
+import { SELECTORS_HELPER_SOURCE } from "../templates/qaProject.js";
 import {
   assertSafeIdentifier,
   assertUniqueNormalizedIdentifiers,
@@ -86,10 +87,12 @@ export function scaffoldTestDomain(input: ScaffoldTestDomainInput): ScaffoldTest
   const specsDir = path.join(baseE2eDir, "specs");
   const supportDir = path.join(baseE2eDir, "support");
   const diagnosticsFixturePath = path.join(supportDir, "diagnostics.fixture.ts");
+  const selectorsHelperPath = path.join(supportDir, "selectors.ts");
 
   const destinationDirs = [pagesDir, factoryDir, specsDir, supportDir];
   const destinationFiles = [
     diagnosticsFixturePath,
+    selectorsHelperPath,
     ...stepNames.map((step) => path.join(pagesDir, `${toKebabCase(step)}.page.ts`)),
     path.join(domainDir, `${featureKebab}.mock.ts`),
     path.join(domainDir, `${featureKebab}.api.ts`),
@@ -128,6 +131,7 @@ export function scaffoldTestDomain(input: ScaffoldTestDomainInput): ScaffoldTest
 
   // 0. Shared diagnostics fixture (support/diagnostics.fixture.ts)
   safeWriteFile(diagnosticsFixturePath, DIAGNOSTICS_FIXTURE_SOURCE, { shared: true });
+  safeWriteFile(selectorsHelperPath, SELECTORS_HELPER_SOURCE, { shared: true });
 
   // 1. Generate Page Object(s)
   const pageObjectImports: string[] = [];
@@ -149,7 +153,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 export class ${className} {
   readonly page: Page;
   readonly heading: Locator;
-  // TODO: Add semantic readonly locators (getByRole > getByLabel > getByText > getByTestId), e.g.
+  // TODO: Add readonly locators: data-testid/data-qa/data-{ID_SELECTOR} first, else getByRole > getByLabel > getByText, e.g.
   // readonly submitButton: Locator;
 
   constructor(page: Page) {

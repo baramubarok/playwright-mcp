@@ -13,6 +13,7 @@ test("scaffolds the expected domain files in a temporary project", async () => {
     const result = scaffoldTestDomain({ featureName: "checkout-flow", steps: ["payment"], projectRoot: root });
     const expectedFiles = [
       "tests/e2e/support/diagnostics.fixture.ts",
+      "tests/e2e/support/selectors.ts",
       "tests/e2e/domain/checkout-flow/pages/payment.page.ts",
       "tests/e2e/domain/checkout-flow/checkout-flow.mock.ts",
       "tests/e2e/domain/checkout-flow/checkout-flow.api.ts",
@@ -66,8 +67,8 @@ test("scaffolds the expected domain files in a temporary project", async () => {
 
     // overwrite regenerates the domain files but never clobbers the shared support fixture.
     const overwriteRun = scaffoldTestDomain({ featureName: "checkout-flow", steps: ["payment"], projectRoot: root, overwrite: true });
-    assert.deepEqual(overwriteRun.skippedFiles, ["tests/e2e/support/diagnostics.fixture.ts"]);
-    assert.deepEqual(overwriteRun.createdFiles, expectedFiles.slice(1));
+    assert.deepEqual(overwriteRun.skippedFiles, ["tests/e2e/support/diagnostics.fixture.ts", "tests/e2e/support/selectors.ts"]);
+    assert.deepEqual(overwriteRun.createdFiles, expectedFiles.slice(2));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

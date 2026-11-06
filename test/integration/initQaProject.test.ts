@@ -28,6 +28,7 @@ const EXPECTED_FILES = [
   "assets/README.md",
   "tests/e2e/support/diagnostics.fixture.ts",
   "tests/e2e/support/assets.ts",
+  "tests/e2e/support/selectors.ts",
 ];
 
 test("creates a standalone QA project with env, docs/test-case and assets", async () => {

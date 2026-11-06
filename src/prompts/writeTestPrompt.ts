@@ -21,8 +21,10 @@ tests/e2e/
 2. AUTHORING RULES (ANTI-FLAKINESS & ROBUSTNESS)
 ===================================================================
 - Black-Box Perspective: Write tests verifying user-observable behaviors, not internal DOM implementation details.
-- Locator Priority & Hygiene:
-  * Priority: getByRole > getByLabel / getByPlaceholder > getByText > getByTestId.
+- Locator Priority & Hygiene (selector source of truth is the live website, see the QA workflow):
+  * Priority: stable data attributes first - data-testid > data-qa > data-{ID_SELECTOR} - using page.getByTestId() when the attribute equals use.testIdAttribute, or byTestId()/byQa()/byEnvId() from 'support/selectors' otherwise.
+  * Only when no such attribute exists, fall back to semantic locators: getByRole > getByLabel / getByPlaceholder > getByText.
+  * NEVER invent a data-* attribute that was not seen on the page.
   * FORBIDDEN: Deep CSS/XPath chains (e.g. 'div > div > span', 'button.btn-primary').
   * Scoped Indices: Avoid un-scoped .nth(), .first(), .last().
 - Separation of Concerns:

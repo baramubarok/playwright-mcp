@@ -63,6 +63,27 @@ test("ignores comments, strings and template text (Sprint 4 acceptance)", () => 
   assert.deepEqual(score.warnings, []);
 });
 
+test("treats single data-* attribute selectors and selector helpers as stable locators", () => {
+  const score = scoreContent(`
+    class LoginPage {
+      readonly user = byTestId(this.page, 'username');
+      readonly pass = byQa(this.page, 'password');
+      readonly submit = byEnvId(this.page, 'submit');
+      readonly error = this.page.locator('[data-qa="login-error"]');
+      readonly card = this.page.locator("[data-cy=card]");
+      readonly byId = this.page.getByTestId('x');
+      readonly raw = this.page.locator('.btn-primary');
+      readonly deep = this.page.locator('div > [data-qa="row"]');
+      readonly chained = this.page.locator('[data-qa="list"]').locator('[data-qa="item"]');
+    }
+  `);
+
+  assert.equal(score.locatorQuality.semanticCount, 8);
+  assert.equal(score.locatorQuality.cssXpathCount, 2);
+  assert.equal(score.antiPatterns.deepLocatorChain, 0, "scoped data-* chains are not deep chains");
+  assert.equal(score.warnings.filter((warning) => /raw \.locator|deep\/nested/.test(warning)).length, 2);
+});
+
 test("handles multiline calls and only flags actions that are not awaited", () => {
   const score = scoreContent(`
     test.describe('multiline', () => {

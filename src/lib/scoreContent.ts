@@ -35,6 +35,10 @@ export interface ScoreContentResult {
 export const SKELETON_MARKER = "@mcp-skeleton";
 
 const SEMANTIC_LOCATORS = new Set(["getByRole", "getByText", "getByLabel", "getByTestId", "getByPlaceholder", "getByAltText", "getByTitle"]);
+// Helpers from tests/e2e/support/selectors.ts: stable data-testid / data-qa / data-{ID_SELECTOR} lookups.
+const STABLE_ATTRIBUTE_HELPERS = new Set(["byTestId", "byQa", "byEnvId"]);
+// A single data-* attribute selector such as [data-qa="submit"] is as stable as getByTestId.
+const STABLE_DATA_ATTRIBUTE_SELECTOR = /^\[data-[a-z][a-z0-9-]*(?:=(?:"[^"]*"|'[^']*'|[^\]\s"']+))?\]$/i;
 const ACTIONS = new Set(["click", "fill", "check", "uncheck", "selectOption", "press", "type", "hover", "focus", "dblclick", "dragTo", "tap", "selectText", "setInputFiles", "pressSequentially", "clear"]);
 const TEXT_EXTRACTION = new Set(["textContent", "innerText"]);
 const TEST_MODIFIERS = new Set(["only", "skip", "fixme", "fail", "slow"]);
@@ -199,6 +203,7 @@ export function scoreContent(content: string, fileName = "spec.ts"): ScoreConten
       }
 
       if (name && receiver && SEMANTIC_LOCATORS.has(name)) semanticCount++;
+      if (name && !receiver && ts.isIdentifier(node.expression) && STABLE_ATTRIBUTE_HELPERS.has(name)) semanticCount++;
 
       if (name === "waitForTimeout" && receiver) {
         antiPatterns.waitForTimeout++;
@@ -209,21 +214,25 @@ export function scoreContent(content: string, fileName = "spec.ts"): ScoreConten
         warn(node, 1, `uses setTimeout(...) as a manual sleep — same flakiness risk as waitForTimeout; wait on a specific condition instead.`);
       }
       if (name === "locator" && receiver) {
-        cssXpathCount++;
         const selector = node.arguments[0];
         const selectorText = selector && (ts.isStringLiteral(selector) || ts.isNoSubstitutionTemplateLiteral(selector)) ? selector.text : "";
-        warn(
-          node,
-          2,
-          isDeepSelector(selectorText)
-            ? `uses deep/nested CSS or XPath selector — highly fragile against DOM refactoring; prefer getByRole/getByText/getByTestId.`
-            : `uses raw .locator(...) selector — prefer semantic locators (getByRole/getByTestId) unless targeting framework-portaled components (e.g. Vuetify modals).`,
-        );
-        const parentIsLocatorCall =
-          ts.isPropertyAccessExpression(node.parent) && ts.isCallExpression(node.parent.parent) && calleeName(node.parent.parent) === "locator";
-        if (!parentIsLocatorCall && countLocatorCallsInChain(node) >= 2) {
-          antiPatterns.deepLocatorChain++;
-          warn(node, 4, `chains multiple .locator(...) calls — deep chains are usually a sign the locator isn't specific enough.`);
+        if (selectorText && STABLE_DATA_ATTRIBUTE_SELECTOR.test(selectorText.trim())) {
+          semanticCount++;
+        } else {
+          cssXpathCount++;
+          warn(
+            node,
+            2,
+            isDeepSelector(selectorText)
+              ? `uses deep/nested CSS or XPath selector — highly fragile against DOM refactoring; prefer data-testid/data-qa attributes, then getByRole/getByText.`
+              : `uses raw .locator(...) selector — prefer data-testid/data-qa attributes or semantic locators (getByRole/getByLabel) unless targeting framework-portaled components (e.g. Vuetify modals).`,
+          );
+          const parentIsLocatorCall =
+            ts.isPropertyAccessExpression(node.parent) && ts.isCallExpression(node.parent.parent) && calleeName(node.parent.parent) === "locator";
+          if (!parentIsLocatorCall && countLocatorCallsInChain(node) >= 2) {
+            antiPatterns.deepLocatorChain++;
+            warn(node, 4, `chains multiple .locator(...) calls — deep chains are usually a sign the locator isn't specific enough.`);
+          }
         }
       }
       if (receiver && (name === "nth" || ((name === "first" || name === "last") && node.arguments.length === 0))) {

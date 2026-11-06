@@ -204,3 +204,36 @@ export function assetPath(fileName: string): string {
   return resolved;
 }
 `;
+
+/**
+ * Stable attribute locators. Selector priority when generating tests:
+ * data-testid > data-qa > data-{ID_SELECTOR} > semantic (getByRole/getByLabel/getByPlaceholder/getByText).
+ */
+export const SELECTORS_HELPER_SOURCE = `import type { Locator, Page } from '@playwright/test';
+
+type Scope = Page | Locator;
+
+function attributeSelector(attribute: string, value: string): string {
+  const escaped = value.replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\\\"');
+  return '[' + attribute + '="' + escaped + '"]';
+}
+
+/** [data-testid="value"], regardless of use.testIdAttribute in playwright.config. */
+export function byTestId(scope: Scope, value: string): Locator {
+  return scope.locator(attributeSelector('data-testid', value));
+}
+
+/** [data-qa="value"]. */
+export function byQa(scope: Scope, value: string): Locator {
+  return scope.locator(attributeSelector('data-qa', value));
+}
+
+/** [data-{ID_SELECTOR}="value"], using the ID_SELECTOR suffix from .env (e.g. ID_SELECTOR=cy -> data-cy). */
+export function byEnvId(scope: Scope, value: string): Locator {
+  const suffix = process.env.ID_SELECTOR?.trim();
+  if (!suffix) {
+    throw new Error('ID_SELECTOR is not set in .env; byEnvId() needs it.');
+  }
+  return scope.locator(attributeSelector('data-' + suffix, value));
+}
+`;
