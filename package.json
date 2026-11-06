@@ -11,6 +11,9 @@
   "bin": {
     "playwright-generate-mcp": "dist/index.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "npm run clean && tsc -p tsconfig.json",
     "dev": "tsx watch src/index.ts",
