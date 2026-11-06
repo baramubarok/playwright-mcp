@@ -3,8 +3,6 @@ name: CI - Test & Validate
 on:
   push:
     branches: [main, develop]
-    tags-ignore:
-      - 'v*'  # Don't run on version tags
   pull_request:
     branches: [main, develop]
 

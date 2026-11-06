@@ -3,7 +3,7 @@ name: Publish to NPM
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]*'  # Match tags like v0.2.2
 
 jobs:
   publish:
@@ -11,7 +11,7 @@ jobs:
     
     permissions:
       contents: read
-      id-token: write  # Required for npm provenance
+      id-token: write
     
     steps:
       - name: Checkout code
@@ -26,14 +26,17 @@ jobs:
       
       - name: Install dependencies
         run: npm ci
+        timeout-minutes: 5
       
       - name: Build
         run: npm run build
+        timeout-minutes: 5
       
-      - name: Stage publish to NPM
+      - name: Publish to NPM (staging)
         run: npm publish --provenance --tag staging
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        timeout-minutes: 5
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -41,21 +44,12 @@ jobs:
           tag_name: ${{ github.ref }}
           name: Release ${{ github.ref_name }}
           body: |
-            ✅ Package staged on NPM with `staging` dist-tag
+            ✅ Package staged to NPM Registry
             
-            📦 Package: https://www.npmjs.com/package/playwright-generate-mcp
-            
-            ⚠️ **IMPORTANT**: This version has been staged and requires manual promotion with 2FA.
-            
-            **To publish this version, run locally:**
+            📦 **To promote to latest (requires 2FA):**
             ```bash
             npm dist-tag add playwright-generate-mcp@${{ github.ref_name }} latest
             npm dist-tag rm playwright-generate-mcp staging
-            ```
-            
-            Or verify staging with:
-            ```bash
-            npm view playwright-generate-mcp
             ```
           draft: false
           prerelease: false
