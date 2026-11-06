@@ -255,6 +255,47 @@ export const readTestCasesOutputShape = {
   warnings: z.array(z.string()),
 };
 
+export const inspectPageOutputShape = {
+  baseUrl: z.string(),
+  startUrl: z.string(),
+  authUsed: z.boolean(),
+  testIdAttribute: z.string(),
+  allowedOrigins: z.array(z.string()),
+  states: z.array(
+    z.object({
+      label: z.string(),
+      url: z.string(),
+      title: z.string(),
+      httpStatus: z.number().optional(),
+      totalElements: z.number(),
+      truncated: z.boolean(),
+      elements: z.array(
+        z.object({
+          tag: z.string(),
+          role: z.string().optional(),
+          name: z.string().optional(),
+          type: z.string().optional(),
+          locator: z.string(),
+          source: z.enum(["data-testid", "data-qa", "data-env-id", "role", "label", "placeholder", "text"]),
+          attribute: z.string().optional(),
+          ambiguous: z.boolean().optional(),
+          count: z.number().optional(),
+          href: z.string().optional(),
+          disabled: z.boolean().optional(),
+          required: z.boolean().optional(),
+          checked: z.boolean().optional(),
+        }),
+      ),
+      iframeCount: z.number().optional(),
+      ariaSnapshot: z.string().optional(),
+    }),
+  ),
+  steps: z.array(z.object({ index: z.number(), action: z.string(), target: z.string().optional(), ok: z.boolean(), error: z.string().optional() })),
+  blockedOrigins: z.array(z.string()),
+  hints: z.array(z.string()),
+  warnings: z.array(z.string()),
+};
+
 export const checkTestPrerequisitesOutputShape = {
   projectRoot: z.string(),
   workspaceRoot: z.string().optional(),

@@ -12,6 +12,7 @@ import { scaffoldTestDomain, scaffoldTestDomainInputShape } from "./tools/scaffo
 import { initQaProject, initQaProjectInputShape } from "./tools/initQaProject.js";
 import { scaffoldAuthSetup, scaffoldAuthSetupInputShape } from "./tools/scaffoldAuthSetup.js";
 import { readTestCases, readTestCasesInputShape } from "./tools/readTestCases.js";
+import { inspectPage, inspectPageInputShape } from "./tools/inspectPage.js";
 import { checkTestPrerequisitesTool, checkTestPrerequisitesInputShape } from "./tools/checkTestPrerequisites.js";
 import { WRITE_TEST_PROMPT_NAME, writeTestPromptText } from "./prompts/writeTestPrompt.js";
 import { RUN_AND_HEAL_PROMPT_NAME, runAndHealPromptText } from "./prompts/runAndHealPrompt.js";
@@ -26,6 +27,7 @@ import {
   generateTestReportOutputShape,
   getFailureDetailsOutputShape,
   initQaProjectOutputShape,
+  inspectPageOutputShape,
   readTestCasesOutputShape,
   runPlaywrightTestOutputShape,
   scaffoldAuthSetupOutputShape,
@@ -127,6 +129,21 @@ registerJsonTool(
     return result;
   },
   (result) => `Initialized QA project at ${result.projectRoot}: ${result.createdFiles.length} created, ${result.skippedFiles.length} skipped.`,
+);
+
+registerJsonTool(
+  "inspect_page",
+  {
+    title: "Inspect a live page",
+    description:
+      "Open a page of the application under test (BASE_URL from .env) in a headless browser using the project's own Playwright and return the elements a test needs: role, accessible name and the BEST locator per element, chosen in this order: data-testid > data-qa > data-{ID_SELECTOR} > role+name > label > placeholder > text. " +
+      "Use it instead of reading frontend source code. 'steps' (click/fill/select/press/waitFor/snapshot) reach other UI states such as modals or wizard steps; useAuth reuses the saved login session; credentials can be typed with {{TEST_USER}}/{{TEST_PASSWORD}} and are redacted from the output. " +
+      "Navigation is limited to BASE_URL/API_URL origins (plus allowedOrigins). Locators that match several elements are flagged ambiguous: scope them in a container instead of using .nth().",
+    inputSchema: inspectPageInputShape,
+    outputSchema: inspectPageOutputShape,
+  },
+  (input, extra) => inspectPage(input, { signal: extra.signal }),
+  (result) => `${result.states.length} state(s), ${result.states.reduce((sum, state) => sum + state.totalElements, 0)} element(s) at ${result.startUrl}${result.warnings.length > 0 ? ` · ${result.warnings.length} warning(s)` : ""}`,
 );
 
 registerJsonTool(

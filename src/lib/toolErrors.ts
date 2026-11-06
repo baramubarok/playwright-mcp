@@ -14,6 +14,11 @@ export type ToolErrorCode =
   | "AMBIGUOUS_TEST"
   | "TEST_NOT_FOUND"
   | "TEST_NOT_FAILED"
+  | "PLAYWRIGHT_NOT_INSTALLED"
+  | "BROWSER_LAUNCH_FAILED"
+  | "NAVIGATION_FAILED"
+  | "INSPECT_TIMEOUT"
+  | "INSPECT_FAILED"
   | "INTERNAL_ERROR";
 
 export interface ToolErrorPayload {
