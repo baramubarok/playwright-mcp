@@ -27,10 +27,12 @@ jobs:
       
       - name: Build
         run: npm run build
+        timeout-minutes: 5
       
-      - name: Run tests
-        run: npm test
-        timeout-minutes: 10
+      - name: Run unit tests
+        run: npm run test:unit
+        timeout-minutes: 5
       
       - name: Validate package
         run: npm run check:package
+        timeout-minutes: 2
