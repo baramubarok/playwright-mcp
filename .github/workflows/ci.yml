@@ -24,13 +24,17 @@ jobs:
       
       - name: Install dependencies
         run: npm ci
+        timeout-minutes: 5
       
       - name: Build
         run: npm run build
         timeout-minutes: 5
       
       - name: Run unit tests
-        run: npm run test:unit
+        run: |
+          find test/unit -name "*.test.ts" -type f | while read file; do
+            node --import tsx --test --test-timeout=60000 "$file"
+          done
         timeout-minutes: 5
       
       - name: Validate package
