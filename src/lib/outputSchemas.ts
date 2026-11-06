@@ -231,6 +231,30 @@ export const initQaProjectOutputShape = {
   nextSteps: z.array(z.string()),
 };
 
+export const readTestCasesOutputShape = {
+  projectRoot: z.string(),
+  directory: z.string(),
+  files: z.array(z.object({ file: z.string(), format: z.enum(["gherkin", "csv", "xlsx"]), caseCount: z.number() })),
+  skippedFiles: z.array(z.object({ file: z.string(), reason: z.string() })),
+  testCases: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      feature: z.string().optional(),
+      priority: z.string().optional(),
+      tags: z.array(z.string()),
+      preconditions: z.array(z.string()),
+      steps: z.array(z.string()),
+      expected: z.array(z.string()),
+      examples: z.array(z.record(z.string())).optional(),
+      source: z.object({ file: z.string(), line: z.number().optional(), row: z.number().optional() }),
+    }),
+  ),
+  totalCases: z.number(),
+  truncated: z.boolean(),
+  warnings: z.array(z.string()),
+};
+
 export const checkTestPrerequisitesOutputShape = {
   projectRoot: z.string(),
   workspaceRoot: z.string().optional(),

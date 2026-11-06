@@ -11,6 +11,7 @@ import { generateTestReport, generateTestReportInputShape } from "./tools/genera
 import { scaffoldTestDomain, scaffoldTestDomainInputShape } from "./tools/scaffoldTestDomain.js";
 import { initQaProject, initQaProjectInputShape } from "./tools/initQaProject.js";
 import { scaffoldAuthSetup, scaffoldAuthSetupInputShape } from "./tools/scaffoldAuthSetup.js";
+import { readTestCases, readTestCasesInputShape } from "./tools/readTestCases.js";
 import { checkTestPrerequisitesTool, checkTestPrerequisitesInputShape } from "./tools/checkTestPrerequisites.js";
 import { WRITE_TEST_PROMPT_NAME, writeTestPromptText } from "./prompts/writeTestPrompt.js";
 import { RUN_AND_HEAL_PROMPT_NAME, runAndHealPromptText } from "./prompts/runAndHealPrompt.js";
@@ -25,6 +26,7 @@ import {
   generateTestReportOutputShape,
   getFailureDetailsOutputShape,
   initQaProjectOutputShape,
+  readTestCasesOutputShape,
   runPlaywrightTestOutputShape,
   scaffoldAuthSetupOutputShape,
   scaffoldTestDomainOutputShape,
@@ -125,6 +127,20 @@ registerJsonTool(
     return result;
   },
   (result) => `Initialized QA project at ${result.projectRoot}: ${result.createdFiles.length} created, ${result.skippedFiles.length} skipped.`,
+);
+
+registerJsonTool(
+  "read_test_cases",
+  {
+    title: "Read QA test cases",
+    description:
+      "Read the test case files QA put in docs/test-case/ (Gherkin .feature, .csv, optional .xlsx) and return structured cases: id, title, feature, priority, tags, preconditions, steps, expected results, with source file and line/row. " +
+      "Read-only and limited to docs/test-case/. Use it BEFORE inspecting the website and generating tests; keep the case id (e.g. TC-001) as a tag in the generated test title. Filter with ids or path to save tokens.",
+    inputSchema: readTestCasesInputShape,
+    outputSchema: readTestCasesOutputShape,
+  },
+  (input) => readTestCases(input),
+  (result) => `${result.totalCases} test case(s) from ${result.files.length} file(s)${result.warnings.length > 0 ? ` · ${result.warnings.length} warning(s)` : ""}`,
 );
 
 registerJsonTool(
