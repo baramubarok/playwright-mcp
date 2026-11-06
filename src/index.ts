@@ -10,6 +10,7 @@ import { checkPlaywrightConfig, checkPlaywrightConfigInputShape } from "./tools/
 import { generateTestReport, generateTestReportInputShape } from "./tools/generateTestReport.js";
 import { scaffoldTestDomain, scaffoldTestDomainInputShape } from "./tools/scaffoldTestDomain.js";
 import { initQaProject, initQaProjectInputShape } from "./tools/initQaProject.js";
+import { scaffoldAuthSetup, scaffoldAuthSetupInputShape } from "./tools/scaffoldAuthSetup.js";
 import { checkTestPrerequisitesTool, checkTestPrerequisitesInputShape } from "./tools/checkTestPrerequisites.js";
 import { WRITE_TEST_PROMPT_NAME, writeTestPromptText } from "./prompts/writeTestPrompt.js";
 import { RUN_AND_HEAL_PROMPT_NAME, runAndHealPromptText } from "./prompts/runAndHealPrompt.js";
@@ -25,6 +26,7 @@ import {
   getFailureDetailsOutputShape,
   initQaProjectOutputShape,
   runPlaywrightTestOutputShape,
+  scaffoldAuthSetupOutputShape,
   scaffoldTestDomainOutputShape,
   scoreTestQualityOutputShape,
   setProjectRootOutputShape,
@@ -123,6 +125,20 @@ registerJsonTool(
     return result;
   },
   (result) => `Initialized QA project at ${result.projectRoot}: ${result.createdFiles.length} created, ${result.skippedFiles.length} skipped.`,
+);
+
+registerJsonTool(
+  "scaffold_auth_setup",
+  {
+    title: "Scaffold global auth setup",
+    description:
+      "Create the global authentication handler: tests/e2e/auth (config, page object or API helper, auth.setup.ts) that logs in once with TEST_USER/TEST_PASSWORD from .env and saves the session to .auth/user.json, then wires a 'setup' project with storageState and dependencies into playwright.config.* (when it is the standard QA config) and git-ignores .auth/. " +
+      "mode 'ui' (default) logs in through the form; mode 'api' logs in with the backend API. scaffold_test_domain calls this automatically for auth-like features.",
+    inputSchema: scaffoldAuthSetupInputShape,
+    outputSchema: scaffoldAuthSetupOutputShape,
+  },
+  (input) => scaffoldAuthSetup(input),
+  (result) => `Auth setup (${result.mode}): ${result.createdFiles.length} created, ${result.skippedFiles.length} skipped, config ${result.configStatus}.`,
 );
 
 registerJsonTool(

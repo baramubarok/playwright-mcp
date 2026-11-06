@@ -50,6 +50,9 @@ export const TSCONFIG_TEMPLATE = `{
 }
 `;
 
+/** The single project the QA template starts with; scaffold_auth_setup replaces exactly this line. */
+export const DEFAULT_PROJECTS_LINE = "  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],";
+
 export const PLAYWRIGHT_CONFIG_TEMPLATE = `import path from 'node:path';
 import dotenv from 'dotenv';
 import { defineConfig, devices } from '@playwright/test';
@@ -84,7 +87,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+${DEFAULT_PROJECTS_LINE}
 });
 `;
 

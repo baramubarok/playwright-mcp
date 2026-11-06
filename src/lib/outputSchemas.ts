@@ -186,6 +186,30 @@ export const scaffoldTestDomainOutputShape = {
   factoryFile: z.string(),
   diagnosticsFixtureFile: z.string(),
   skeleton: z.literal(true),
+  authFeature: z.boolean(),
+  authSetup: z
+    .object({
+      mode: z.enum(["ui", "api"]),
+      createdFiles: z.array(z.string()),
+      skippedFiles: z.array(z.string()),
+      authStateFile: z.string(),
+      configStatus: z.enum(["patched", "already_configured", "manual_required", "not_found"]),
+      configSnippet: z.string().optional(),
+      gitignoreUpdated: z.boolean(),
+      nextSteps: z.array(z.string()),
+    })
+    .optional(),
+  nextSteps: z.array(z.string()),
+};
+
+export const scaffoldAuthSetupOutputShape = {
+  mode: z.enum(["ui", "api"]),
+  createdFiles: z.array(z.string()),
+  skippedFiles: z.array(z.string()),
+  authStateFile: z.string(),
+  configStatus: z.enum(["patched", "already_configured", "manual_required", "not_found"]),
+  configSnippet: z.string().optional(),
+  gitignoreUpdated: z.boolean(),
   nextSteps: z.array(z.string()),
 };
 

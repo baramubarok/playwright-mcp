@@ -155,6 +155,7 @@ export function initQaProject(input: InitQaProjectInput): InitQaProjectOutput {
     ...(envTodo.length > 0 ? [`Fill ${envTodo.join(" and ")} in .env (also set TEST_USER/TEST_PASSWORD when the app needs login).`] : []),
     "Run 'npm install' and 'npx playwright install chromium' in the project.",
     "Put QA test case files (.feature or .csv) in docs/test-case/ and files used for uploads in assets/.",
+    "If the app needs login, run scaffold_auth_setup (global auth handler with storageState).",
     "Run check_test_prerequisites to verify the setup, then scaffold_test_domain for each feature.",
   ];
 
