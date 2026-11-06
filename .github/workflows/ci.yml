@@ -3,6 +3,8 @@ name: CI - Test & Validate
 on:
   push:
     branches: [main, develop]
+    tags-ignore:
+      - 'v*'  # Don't run on version tags
   pull_request:
     branches: [main, develop]
 
@@ -26,8 +28,9 @@ jobs:
       - name: Build
         run: npm run build
       
-      - name: Run all tests
+      - name: Run tests
         run: npm test
+        timeout-minutes: 10
       
       - name: Validate package
         run: npm run check:package
